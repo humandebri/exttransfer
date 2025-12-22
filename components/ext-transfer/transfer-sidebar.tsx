@@ -1,4 +1,4 @@
-// components/ext-transfer/transfer-sidebar.tsx: Sidebar navigation and canister management for the workspace.
+// components/ext-transfer/transfer-sidebar.tsx: サイドバーでCanister管理とウォレット操作をまとめる。
 "use client";
 
 import { useState } from "react";
@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { type CanisterEntry } from "@/components/ext-transfer/transfer-data";
 import { useCanisters } from "@/components/ext-transfer/canister-store";
+import WalletConnectPanel from "@/components/ext-transfer/wallet-connect-panel";
 
 export default function TransferSidebar() {
   const {
@@ -190,6 +191,10 @@ export default function TransferSidebar() {
             ))}
           </div>
         </ScrollArea>
+
+        <div className="rounded-2xl border border-zinc-200/60 bg-white px-3 py-3">
+          <WalletConnectPanel />
+        </div>
       </div>
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="rounded-2xl">

@@ -6,8 +6,8 @@ import { HttpAgent } from "@dfinity/agent";
 
 import { useCanisters } from "@/components/ext-transfer/canister-store";
 import { IC_HOST } from "@/lib/runtime-config";
-import { fetchRegistry } from "@/lib/ext-registry";
 import { tokenIdentifierFromIndex } from "@/lib/ext-token-id";
+import { fetchOwnedTokenIndexes } from "@/lib/ext-owned-tokens";
 import { useWalletMeta } from "@/components/ext-transfer/use-wallet-meta";
 
 export type DisplayToken = {
@@ -57,35 +57,38 @@ export function useExtTokens() {
     }
     setState({ tokens: [], loading: true, error: null });
     try {
-      const registry = await fetchRegistry(agent, selectedCanister.id);
-      const filtered = registry.filter((entry) => entry.accountId === accountId);
-      filtered.sort((a, b) => a.tokenIndex - b.tokenIndex);
+      const result = await fetchOwnedTokenIndexes(
+        agent,
+        selectedCanister.id,
+        accountId
+      );
+      if (result.kind === "err") {
+        setState({ tokens: [], loading: false, error: result.message });
+        return;
+      }
+      const indexes = [...result.indexes].sort((a, b) => a - b);
       console.info("[exttransfer] sorted token indexes", {
-        count: filtered.length,
-        first: filtered[0]?.tokenIndex ?? null,
-        last: filtered[filtered.length - 1]?.tokenIndex ?? null,
+        count: indexes.length,
+        first: indexes[0] ?? null,
+        last: indexes[indexes.length - 1] ?? null,
       });
       console.info("[exttransfer] token identifiers", {
-        pairs: filtered.map((entry) => ({
-          tokenIndex: entry.tokenIndex,
-          tokenIdentifier: tokenIdentifierFromIndex(
-            selectedCanister.id,
-            entry.tokenIndex
-          ),
+        pairs: indexes.map((tokenIndex) => ({
+          tokenIndex,
+          tokenIdentifier: tokenIdentifierFromIndex(selectedCanister.id, tokenIndex),
         })),
       });
-      const tokens: DisplayToken[] = filtered
-        .map((entry, entryIndex) => {
+      const tokens: DisplayToken[] = indexes.map((tokenIndex, entryIndex) => {
           const tokenIdentifier = tokenIdentifierFromIndex(
             selectedCanister.id,
-            entry.tokenIndex
+            tokenIndex
           );
           const tokenText = tokenIdentifier;
           return {
             id: `${selectedCanister.id}-${tokenText}`,
-            label: `#${entry.tokenIndex + 1}`,
+            label: `#${tokenIndex + 1}`,
             collection: selectedCanister.name,
-            tokenId: `#${entry.tokenIndex + 1}`,
+            tokenId: `#${tokenIndex + 1}`,
             tone: TOKEN_TONES[entryIndex % TOKEN_TONES.length],
             rarity: RARITY_LABELS[entryIndex % RARITY_LABELS.length],
             imageUrl: `https://${selectedCanister.id}.raw.icp0.io/?cc=0&type=thumbnail&tokenid=${encodeURIComponent(

@@ -1,10 +1,10 @@
 "use client";
 
-// components/ext-transfer/transfer-workspace.tsx: Main interactive area with selection, filtering, and modal.
+// components/ext-transfer/transfer-workspace.tsx: 選択と送信の主要UI。アクティブなウォレットで順次転送する。
 import { useEffect, useMemo, useState } from "react";
 import { Send } from "lucide-react";
 import { Principal } from "@dfinity/principal";
-import { useAgent } from "@nfid/identitykit/react";
+import { Principal as IcpPrincipal } from "@icp-sdk/core/principal";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,18 +21,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import IdentityKitConnect from "@/components/ext-transfer/identitykit-connect";
-import { FILTER_TABS } from "@/components/ext-transfer/transfer-data";
 import TransferTokenGrid from "@/components/ext-transfer/transfer-token-grid";
 import TransferTokenSkeleton from "@/components/ext-transfer/transfer-token-skeleton";
 import { useWalletMeta } from "@/components/ext-transfer/use-wallet-meta";
 import { useCanisters } from "@/components/ext-transfer/canister-store";
 import { useExtTokens } from "@/components/ext-transfer/use-ext-tokens";
+import { useWallets } from "@/components/ext-transfer/wallet-context";
 import {
   formatTransferError,
+  transferIdlFactory,
+  type TransferActor,
   transferExtToken,
 } from "@/lib/ext-transfer";
 import { IC_HOST } from "@/lib/runtime-config";
+import {
+  buildOisyTransferCallParams,
+  decodeOisyTransferResponse,
+  type OisyTransferRequest,
+} from "@/lib/ext-transfer-icrc";
 
 type TransferMode = "principal" | "account";
 type TransferStatus = "idle" | "pending" | "success" | "error";
@@ -43,8 +49,13 @@ type TransferLogEntry = {
   detail?: string;
 };
 
+function isValidAccountId(value: string): boolean {
+  const normalized = value.startsWith("0x") ? value.slice(2) : value;
+  return /^[0-9a-fA-F]{64}$/.test(normalized);
+}
+
 export default function TransferWorkspace() {
-  // Selection stays local to keep UI responsive before canister wiring.
+  // 選択状態はローカルに保持し、通信前でもUIが軽く動くようにする。
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [transferMode, setTransferMode] = useState<TransferMode>("principal");
   const [recipient, setRecipient] = useState("");
@@ -52,9 +63,17 @@ export default function TransferWorkspace() {
   const [transferRunning, setTransferRunning] = useState(false);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const { accountId } = useWalletMeta();
+  const { activeWallet, ensureActiveCanisterAccess } = useWallets();
   const { selectedCanister } = useCanisters();
   const { tokens, loading } = useExtTokens();
-  const agent = useAgent({ host: IC_HOST });
+  const walletReady =
+    !!activeWallet &&
+    activeWallet.status === "connected" &&
+    (activeWallet.id === "oisy"
+      ? !!activeWallet.relyingParty
+      : activeWallet.id === "plug"
+        ? true
+        : !!activeWallet.agent);
   const shortAccountId =
     accountId === "Not connected"
       ? accountId
@@ -63,6 +82,28 @@ export default function TransferWorkspace() {
   const displayTokens = tokens;
   const selectedCount = selectedIds.length;
   const allSelected = selectedCount === displayTokens.length;
+  const trimmedRecipient = recipient.trim();
+  const isRecipientValid = useMemo(() => {
+    if (!trimmedRecipient) {
+      return false;
+    }
+    if (transferMode === "principal") {
+      try {
+        Principal.fromText(trimmedRecipient);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return isValidAccountId(trimmedRecipient);
+  }, [trimmedRecipient, transferMode]);
+  const canSubmitTransfer =
+    !transferRunning &&
+    selectedCount > 0 &&
+    !!selectedCanister &&
+    accountId !== "Not connected" &&
+    walletReady &&
+    isRecipientValid;
 
   const selectedLabel = useMemo(() => {
     if (selectedCount === 0) {
@@ -94,26 +135,24 @@ export default function TransferWorkspace() {
 
   return (
     <main className="flex flex-1 flex-col gap-4">
-      <header className="flex flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 font-[var(--font-display)] sm:text-4xl">
+      <header className="flex flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-4 shadow-sm">
+        <div className="flex w-full items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 font-[var(--font-display)] sm:text-4xl">
               {selectedTitle}
             </h1>
-            <p className="mt-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
+          </div>
+          <div className="ml-auto text-right">
+            <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
               Account ID
             </p>
-            <p className="text-sm font-medium text-zinc-900">{shortAccountId}</p>
+            <p className="text-sm font-medium text-zinc-900">
+              {shortAccountId}
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <IdentityKitConnect />
-            <Button className="rounded-full">
-              <Send className="mr-2 h-4 w-4" />
-              New Transfer
-            </Button>
-          </div>
+          <div className="flex flex-wrap items-center gap-2" />
         </div>
-        {/* Status strip intentionally omitted to keep the header minimal. */}
+        {/* ヘッダーは簡潔に保つためステータス行は省略する。 */}
       </header>
 
       <section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm">
@@ -133,7 +172,7 @@ export default function TransferWorkspace() {
               </p>
             </div>
           </div>
-          {/* Transfer dialog is ready for wiring once EXT transfer is connected. */}
+          {/* 転送先入力はウォレット接続後に有効化される前提。 */}
           <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
             <DialogTrigger asChild>
               <Button className="rounded-full" disabled={selectedCount === 0}>
@@ -173,6 +212,13 @@ export default function TransferWorkspace() {
                       transferMode === "principal" ? "aaaaa-aa" : "a3b4...f8"
                     }
                   />
+                  {!isRecipientValid && trimmedRecipient ? (
+                    <p className="text-xs text-rose-500">
+                      {transferMode === "principal"
+                        ? "Invalid Principal"
+                        : "Invalid Account ID"}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
                   {selectedCount} NFTs will be transferred sequentially.
@@ -215,20 +261,12 @@ export default function TransferWorkspace() {
               <DialogFooter>
                 <Button variant="secondary">Save draft</Button>
                 <Button
-                  disabled={
-                    transferRunning ||
-                    selectedCount === 0 ||
-                    !recipient.trim() ||
-                    !selectedCanister ||
-                    accountId === "Not connected" ||
-                    !agent
-                  }
+                  disabled={!canSubmitTransfer}
                   onClick={async () => {
-                    if (!selectedCanister || !agent) {
+                    if (!selectedCanister || !activeWallet) {
                       return;
                     }
-                    const trimmedRecipient = recipient.trim();
-                    if (!trimmedRecipient) {
+                    if (!isRecipientValid) {
                       return;
                     }
                     const selectedTokens = displayTokens.filter((token) =>
@@ -238,6 +276,7 @@ export default function TransferWorkspace() {
                       return;
                     }
                     setTransferRunning(true);
+                    await ensureActiveCanisterAccess(selectedCanister.id);
                     setTransferLog(
                       selectedTokens.map((token) => ({
                         tokenId: token.id,
@@ -247,10 +286,74 @@ export default function TransferWorkspace() {
                     );
                     for (const token of selectedTokens) {
                       try {
-                        const response = await transferExtToken(
-                          agent,
-                          selectedCanister.id,
-                          {
+                        const response = await (async () => {
+                          if (activeWallet.id === "oisy") {
+                            // OISYはICRC-49経由でcanister呼び出しを行う。
+                            const relyingParty = activeWallet.relyingParty;
+                            const senderPrincipal = activeWallet.principalText;
+                            if (!relyingParty || !senderPrincipal) {
+                              throw new Error("OISY wallet is not ready.");
+                            }
+                            const request: OisyTransferRequest = {
+                              to:
+                                transferMode === "principal"
+                                  ? {
+                                      principal: IcpPrincipal.fromText(
+                                        trimmedRecipient
+                                      ),
+                                    }
+                                  : { address: trimmedRecipient },
+                              token: token.tokenIdentifier,
+                              notify: false,
+                              from: { address: accountId },
+                              memo: [],
+                              subaccount: [],
+                              amount: 1n,
+                            };
+                            const params = buildOisyTransferCallParams(
+                              selectedCanister.id,
+                              senderPrincipal,
+                              request
+                            );
+                            const result = await relyingParty.callCanister({
+                              params,
+                            });
+                            return decodeOisyTransferResponse({
+                              params,
+                              result,
+                              host: IC_HOST,
+                            });
+                          }
+                          if (activeWallet.id === "plug") {
+                            const plug = window.ic?.plug;
+                            if (!plug) {
+                              throw new Error("Plug extension not detected.");
+                            }
+                            const actor = await plug.createActor<TransferActor>({
+                              canisterId: selectedCanister.id,
+                              interfaceFactory: transferIdlFactory,
+                            });
+                            return actor.transfer({
+                              to:
+                                transferMode === "principal"
+                                  ? {
+                                      principal: Principal.fromText(
+                                        trimmedRecipient
+                                      ),
+                                    }
+                                  : { address: trimmedRecipient },
+                              token: token.tokenIdentifier,
+                              notify: false,
+                              from: { address: accountId },
+                              memo: [],
+                              subaccount: [],
+                              amount: 1n,
+                            });
+                          }
+                          if (!activeWallet.agent) {
+                            throw new Error("Active wallet agent missing.");
+                          }
+                          return transferExtToken(activeWallet.agent, selectedCanister.id, {
                             to:
                               transferMode === "principal"
                                 ? {
@@ -265,20 +368,20 @@ export default function TransferWorkspace() {
                             memo: [],
                             subaccount: [],
                             amount: 1n,
-                          }
-                        );
+                          });
+                        })();
                         if ("err" in response) {
                           setTransferLog((prev) =>
-                          prev.map((entry) =>
-                            entry.tokenId === token.id
-                              ? {
-                                  ...entry,
-                                  status: "error",
-                                  detail: formatTransferError(response.err),
-                                }
-                              : entry
-                          )
-                        );
+                            prev.map((entry) =>
+                              entry.tokenId === token.id
+                                ? {
+                                    ...entry,
+                                    status: "error",
+                                    detail: formatTransferError(response.err),
+                                  }
+                                : entry
+                            )
+                          );
                           continue;
                         }
                         setTransferLog((prev) =>
@@ -315,23 +418,6 @@ export default function TransferWorkspace() {
           </Dialog>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-          <Tabs defaultValue={FILTER_TABS[0]} className="w-full sm:w-auto">
-            <TabsList className="rounded-full">
-              {FILTER_TABS.map((tab) => (
-                <TabsTrigger key={tab} value={tab} className="rounded-full">
-                  {tab}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" className="rounded-full">
-              Queue tokens
-            </Button>
-          </div>
-        </div>
-
         <ScrollArea className="mt-6 h-[420px] pr-2">
           {loading ? (
             <TransferTokenSkeleton />
@@ -349,12 +435,6 @@ export default function TransferWorkspace() {
         </ScrollArea>
       </section>
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-500">
-        <span>EXT Transfer Studio, design reference applied.</span>
-        <span className="flex items-center gap-2">
-          Need live data? Connect canisters from the left panel.
-        </span>
-      </footer>
     </main>
   );
 }

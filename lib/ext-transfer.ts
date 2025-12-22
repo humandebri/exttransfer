@@ -1,4 +1,4 @@
-// lib/ext-transfer.ts: EXT transfer caller helpers.
+// lib/ext-transfer.ts: EXT transferのエージェント呼び出しをまとめる。署名経路の共通化が目的。
 import { Actor } from "@dfinity/agent";
 import type { Agent } from "@dfinity/agent";
 import { IDL } from "@dfinity/candid";
@@ -34,11 +34,11 @@ export type TransferRequest = {
   amount: bigint;
 };
 
-type TransferActor = {
+export type TransferActor = {
   transfer: (request: TransferRequest) => Promise<TransferResponse>;
 };
 
-const idlFactory: IDL.InterfaceFactory = ({ IDL }) => {
+export const transferIdlFactory: IDL.InterfaceFactory = ({ IDL }) => {
   const toVariant = IDL.Variant({
     principal: IDL.Principal,
     address: IDL.Text,
@@ -75,7 +75,7 @@ export async function transferExtToken(
   canisterId: string,
   request: TransferRequest
 ): Promise<TransferResponse> {
-  const actor = Actor.createActor<TransferActor>(idlFactory, {
+  const actor = Actor.createActor<TransferActor>(transferIdlFactory, {
     agent,
     canisterId,
   });

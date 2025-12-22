@@ -148,8 +148,3 @@
     transform: translateY(0);
   }
 }
-
-/* IdentityKit: hide the "View all" link so CustomConnect is not exposed. */
-.ik-component small.ik-text-primary.ik-font-bold.ik-cursor-pointer {
-  display: none;
-}

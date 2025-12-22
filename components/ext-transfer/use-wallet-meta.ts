@@ -1,10 +1,9 @@
 "use client";
 
-// components/ext-transfer/use-wallet-meta.ts: Centralize wallet identity strings for consistent UI labels.
+// components/ext-transfer/use-wallet-meta.ts: 画面表示で使うウォレット情報を整形して返す。
 import { useMemo } from "react";
-import { useAccounts, useIdentity } from "@nfid/identitykit/react";
 
-import { deriveAccountId } from "@/lib/ic-account";
+import { useWallets } from "@/components/ext-transfer/wallet-context";
 
 export type WalletMeta = {
   accountId: string;
@@ -13,34 +12,32 @@ export type WalletMeta = {
 };
 
 export function useWalletMeta(): WalletMeta {
-  const identity = useIdentity();
-  const accounts = useAccounts();
-  const primaryAccount = accounts && accounts.length > 0 ? accounts[0] : undefined;
+  const { activeWallet } = useWallets();
 
   const principalText = useMemo(() => {
-    if (!identity) {
+    if (!activeWallet || !activeWallet.principalText) {
       return "Not connected";
     }
-    return identity.getPrincipal().toString();
-  }, [identity]);
+    return activeWallet.principalText;
+  }, [activeWallet]);
 
   const accountId = useMemo(() => {
-    if (!primaryAccount) {
+    if (!activeWallet || !activeWallet.accountId) {
       return "Not connected";
     }
-    return deriveAccountId(primaryAccount.principal, primaryAccount.subAccount);
-  }, [primaryAccount]);
+    return activeWallet.accountId;
+  }, [activeWallet]);
 
   const walletLabel = useMemo(() => {
-    if (!identity) {
+    if (!activeWallet || !activeWallet.principalText) {
       return "Not connected";
     }
-    const principal = identity.getPrincipal().toString();
+    const principal = activeWallet.principalText;
     if (principal.length <= 12) {
       return principal;
     }
     return `${principal.slice(0, 5)}...${principal.slice(-3)}`;
-  }, [identity]);
+  }, [activeWallet]);
 
   return { accountId, principalText, walletLabel };
 }

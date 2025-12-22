@@ -1,11 +1,10 @@
-// app/layout.tsx: Root layout sets global fonts, wallet styles, and metadata for the full app shell.
+// app/layout.tsx: ルートのフォントとメタ情報をまとめ、全体のレイアウトを整える。
 import type { Metadata } from "next";
 import { Fraunces, JetBrains_Mono, Space_Grotesk } from "next/font/google";
-import "@nfid/identitykit/react/styles.css";
 import "./globals.css";
 import Providers from "./providers";
 
-// Display and body fonts are separated to create contrast without dark-mode bias.
+// 見出しと本文のフォントを分けて、軽いコントラストを作る。
 const displayFont = Fraunces({
   variable: "--font-display-source",
   subsets: ["latin"],
@@ -37,6 +36,7 @@ export default function RootLayout({
       <body
         className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable} antialiased`}
       >
+        {/* フォント変数はルートに集約して各コンポーネントを簡潔に保つ。 */}
         <Providers>{children}</Providers>
       </body>
     </html>
