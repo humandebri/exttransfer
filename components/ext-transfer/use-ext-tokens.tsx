@@ -1,13 +1,14 @@
 "use client";
 
-// components/ext-transfer/use-ext-tokens.tsx: Fetch tokens_ext data for the connected account.
+// components/ext-transfer/use-ext-tokens.tsx: Fetch getRegistry data for the selected canister.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAccounts, useAgent } from "@nfid/identitykit/react";
+import { HttpAgent } from "@dfinity/agent";
 
 import { useCanisters } from "@/components/ext-transfer/canister-store";
-import { deriveAccountId } from "@/lib/ic-account";
 import { IC_HOST } from "@/lib/runtime-config";
-import { fetchTokensExt } from "@/lib/ext-tokens";
+import { fetchRegistry } from "@/lib/ext-registry";
+import { tokenIdentifierFromIndex } from "@/lib/ext-token-id";
+import { useWalletMeta } from "@/components/ext-transfer/use-wallet-meta";
 
 export type DisplayToken = {
   id: string;
@@ -16,6 +17,7 @@ export type DisplayToken = {
   tokenId: string;
   tone: string;
   rarity: string;
+  imageUrl?: string;
 };
 
 type TokensState = {
@@ -36,16 +38,10 @@ const TOKEN_TONES = [
 const RARITY_LABELS = ["Core", "Rare", "Ultra", "Legend"];
 
 export function useExtTokens() {
-  const { canisters } = useCanisters();
-  const agent = useAgent({ host: IC_HOST });
-  const accounts = useAccounts();
-
-  const accountId = useMemo(() => {
-    if (!accounts || accounts.length === 0) {
-      return null;
-    }
-    return deriveAccountId(accounts[0].principal, accounts[0].subAccount);
-  }, [accounts]);
+  const { selectedCanister } = useCanisters();
+  const agent = useMemo(() => new HttpAgent({ host: IC_HOST }), []);
+  const { accountId } = useWalletMeta();
+  const hasAccount = accountId !== "Not connected";
 
   const [state, setState] = useState<TokensState>({
     tokens: [],
@@ -54,52 +50,59 @@ export function useExtTokens() {
   });
 
   const refresh = useCallback(async () => {
-    if (!agent || !accountId) {
+    if (!agent || !hasAccount || !selectedCanister) {
       return;
     }
     setState({ tokens: [], loading: true, error: null });
     try {
-      const tokens: DisplayToken[] = [];
-      for (const [index, canister] of canisters.entries()) {
-        const result = await fetchTokensExt(agent, canister.id, accountId);
-        if (result.kind === "tokenIdentifiers") {
-          result.tokens.forEach((token, tokenIndex) => {
-            tokens.push({
-              id: token,
-              label: token,
-              collection: canister.name,
-              tokenId: token,
-              tone: TOKEN_TONES[(tokenIndex + index) % TOKEN_TONES.length],
-              rarity: RARITY_LABELS[(tokenIndex + index) % RARITY_LABELS.length],
-            });
-          });
-        }
-        if (result.kind === "indexes") {
-          result.indexes.forEach((tokenIndex) => {
-            const tokenText = tokenIndex.toString();
-            tokens.push({
-              id: `${canister.id}-${tokenText}`,
-              label: `#${tokenText}`,
-              collection: canister.name,
-              tokenId: tokenText,
-              tone: TOKEN_TONES[(Number(tokenIndex % 6n)) % TOKEN_TONES.length],
-              rarity: RARITY_LABELS[Number(tokenIndex % 4n)],
-            });
-          });
-        }
-      }
+      const registry = await fetchRegistry(agent, selectedCanister.id);
+      const filtered = registry.filter((entry) => entry.accountId === accountId);
+      filtered.sort((a, b) => a.tokenIndex - b.tokenIndex);
+      console.info("[exttransfer] sorted token indexes", {
+        count: filtered.length,
+        first: filtered[0]?.tokenIndex ?? null,
+        last: filtered[filtered.length - 1]?.tokenIndex ?? null,
+      });
+      console.info("[exttransfer] token identifiers", {
+        pairs: filtered.map((entry) => ({
+          tokenIndex: entry.tokenIndex,
+          tokenIdentifier: tokenIdentifierFromIndex(
+            selectedCanister.id,
+            entry.tokenIndex
+          ),
+        })),
+      });
+      const tokens: DisplayToken[] = filtered
+        .map((entry, entryIndex) => {
+          const tokenIdentifier = tokenIdentifierFromIndex(
+            selectedCanister.id,
+            entry.tokenIndex
+          );
+          const tokenText = tokenIdentifier;
+          return {
+            id: `${selectedCanister.id}-${tokenText}`,
+            label: `#${entry.tokenIndex}`,
+            collection: selectedCanister.name,
+            tokenId: tokenText,
+            tone: TOKEN_TONES[entryIndex % TOKEN_TONES.length],
+            rarity: RARITY_LABELS[entryIndex % RARITY_LABELS.length],
+            imageUrl: `https://${selectedCanister.id}.raw.icp0.io/?cc=0&type=thumbnail&tokenid=${encodeURIComponent(
+              tokenText
+            )}`,
+          };
+        });
       setState({ tokens, loading: false, error: null });
     } catch {
       setState({ tokens: [], loading: false, error: "Failed to load tokens." });
     }
-  }, [agent, accountId, canisters]);
+  }, [agent, hasAccount, selectedCanister]);
 
   useEffect(() => {
-    if (!agent || !accountId) {
+    if (!agent || !hasAccount || !selectedCanister) {
       return;
     }
     refresh();
-  }, [agent, accountId, canisters, refresh]);
+  }, [agent, hasAccount, selectedCanister, refresh]);
 
   return {
     tokens: state.tokens,

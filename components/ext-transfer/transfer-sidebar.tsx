@@ -21,7 +21,14 @@ import { type CanisterEntry } from "@/components/ext-transfer/transfer-data";
 import { useCanisters } from "@/components/ext-transfer/canister-store";
 
 export default function TransferSidebar() {
-  const { canisters, addCanister, updateCanister, removeCanister } = useCanisters();
+  const {
+    canisters,
+    addCanister,
+    updateCanister,
+    removeCanister,
+    selectedCanisterId,
+    setSelectedCanisterId,
+  } = useCanisters();
   const [modalOpen, setModalOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [activeCanister, setActiveCanister] = useState<CanisterEntry | null>(null);
@@ -72,7 +79,7 @@ export default function TransferSidebar() {
   };
 
   return (
-    <aside className="hidden w-72 flex-col gap-6 rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm lg:flex self-stretch">
+    <aside className="hidden w-78 flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm lg:flex self-stretch">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">EXT</p>
@@ -144,14 +151,28 @@ export default function TransferSidebar() {
             {canisters.map((canister) => (
               <div
                 key={canister.id}
-                className="rounded-2xl border border-zinc-200/60 bg-white px-3 py-2"
+                className={`rounded-2xl border px-3 py-2 transition ${
+                  selectedCanisterId === canister.id
+                    ? "border-zinc-900/40 bg-zinc-50"
+                    : "border-zinc-200/60 bg-white"
+                }`}
+                onClick={() => setSelectedCanisterId(canister.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    setSelectedCanisterId(canister.id);
+                  }
+                }}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-zinc-900">
                       {canister.name}
                     </p>
-                    <p className="text-xs text-zinc-500">{canister.id}</p>
+                    <p className="truncate text-xs text-zinc-500">
+                      {canister.id}
+                    </p>
                     <p className="mt-1 text-xs text-emerald-600">
                       {canister.status}
                     </p>

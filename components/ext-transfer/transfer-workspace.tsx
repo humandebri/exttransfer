@@ -23,6 +23,8 @@ import IdentityKitConnect from "@/components/ext-transfer/identitykit-connect";
 import { FILTER_TABS, NFT_ITEMS } from "@/components/ext-transfer/transfer-data";
 import TransferTokenGrid from "@/components/ext-transfer/transfer-token-grid";
 import { useWalletMeta } from "@/components/ext-transfer/use-wallet-meta";
+import { useCanisters } from "@/components/ext-transfer/canister-store";
+import { useExtTokens } from "@/components/ext-transfer/use-ext-tokens";
 
 type TransferMode = "principal" | "account";
 
@@ -31,10 +33,13 @@ export default function TransferWorkspace() {
   const [selectedIds, setSelectedIds] = useState<string[]>(["nft-01", "nft-04"]);
   const [transferMode, setTransferMode] = useState<TransferMode>("principal");
   const { accountId } = useWalletMeta();
+  const { selectedCanister } = useCanisters();
+  const { tokens } = useExtTokens();
   const shortAccountId =
     accountId === "Not connected"
       ? accountId
       : `${accountId.slice(0, 8)}...${accountId.slice(-6)}`;
+  const selectedTitle = selectedCanister?.name ?? "Select a collection";
   const fallbackTokens = useMemo(
     () =>
       NFT_ITEMS.map((item) => ({
@@ -48,7 +53,7 @@ export default function TransferWorkspace() {
     []
   );
 
-  const displayTokens = fallbackTokens;
+  const displayTokens = tokens.length > 0 ? tokens : fallbackTokens;
   const selectedCount = selectedIds.length;
   const allSelected = selectedCount === displayTokens.length;
 
@@ -81,15 +86,12 @@ export default function TransferWorkspace() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-6">
+    <main className="flex flex-1 flex-col gap-4">
       <header className="flex flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-              EXT bulk transfer
-            </p>
             <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 font-[var(--font-display)] sm:text-4xl">
-              Dispatch NFTs with precision
+              {selectedTitle}
             </h1>
             <p className="mt-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
               Account ID

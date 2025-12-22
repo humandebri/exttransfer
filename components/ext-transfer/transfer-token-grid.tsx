@@ -46,8 +46,18 @@ function TokenCard({ item, index, isSelected, onToggle }: TokenCardProps) {
         className="relative flex flex-col gap-4 p-4 opacity-0 animate-[fade-in_0.6s_ease-out_forwards]"
         style={{ animationDelay: `${0.1 + index * 0.05}s` }}
       >
-        <div className={`h-40 rounded-2xl bg-gradient-to-br ${item.tone}`}>
-          <div className="flex h-full items-end justify-between p-3">
+        <div
+          className={`relative aspect-square overflow-hidden rounded-2xl bg-gradient-to-br ${item.tone}`}
+        >
+          {item.imageUrl ? (
+            <img
+              src={item.imageUrl}
+              alt={item.label}
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : null}
+          <div className="absolute inset-0 flex items-end justify-between p-3">
             <span className="rounded-full bg-white/70 px-2 py-1 text-xs text-zinc-700">
               {item.rarity}
             </span>

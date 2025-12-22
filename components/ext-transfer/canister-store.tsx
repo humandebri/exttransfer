@@ -19,9 +19,12 @@ const STORAGE_KEY = "exttransfer:canisters";
 
 type CanisterContextValue = {
   canisters: CanisterEntry[];
+  selectedCanisterId: string | null;
+  selectedCanister: CanisterEntry | null;
   addCanister: (entry: CanisterEntry) => void;
   updateCanister: (id: string, updates: Partial<CanisterEntry>) => void;
   removeCanister: (id: string) => void;
+  setSelectedCanisterId: (id: string | null) => void;
 };
 
 const CanisterContext = createContext<CanisterContextValue | undefined>(
@@ -69,6 +72,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function CanisterProvider({ children }: { children: ReactNode }) {
   const [canisters, setCanisters] = useState<CanisterEntry[]>(() => CANISTERS);
+  const [selectedCanisterId, setSelectedCanisterId] = useState<string | null>(
+    CANISTERS[0]?.id ?? null
+  );
 
   useEffect(() => {
     const stored = parseStoredCanisters(
@@ -76,6 +82,7 @@ export function CanisterProvider({ children }: { children: ReactNode }) {
     );
     if (stored.length > 0) {
       setCanisters(stored);
+      setSelectedCanisterId((prev) => prev ?? stored[0]?.id ?? null);
     }
   }, []);
 
@@ -105,9 +112,45 @@ export function CanisterProvider({ children }: { children: ReactNode }) {
     setCanisters((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
+  useEffect(() => {
+    if (!selectedCanisterId) {
+      if (canisters.length > 0) {
+        setSelectedCanisterId(canisters[0]?.id ?? null);
+      }
+      return;
+    }
+    const exists = canisters.some((item) => item.id === selectedCanisterId);
+    if (!exists) {
+      setSelectedCanisterId(canisters[0]?.id ?? null);
+    }
+  }, [canisters, selectedCanisterId]);
+
+  const selectedCanister = useMemo(() => {
+    if (!selectedCanisterId) {
+      return null;
+    }
+    return canisters.find((item) => item.id === selectedCanisterId) ?? null;
+  }, [canisters, selectedCanisterId]);
+
   const value = useMemo(
-    () => ({ canisters, addCanister, updateCanister, removeCanister }),
-    [canisters, addCanister, updateCanister, removeCanister]
+    () => ({
+      canisters,
+      selectedCanisterId,
+      selectedCanister,
+      addCanister,
+      updateCanister,
+      removeCanister,
+      setSelectedCanisterId,
+    }),
+    [
+      canisters,
+      selectedCanisterId,
+      selectedCanister,
+      addCanister,
+      updateCanister,
+      removeCanister,
+      setSelectedCanisterId,
+    ]
   );
 
   return (

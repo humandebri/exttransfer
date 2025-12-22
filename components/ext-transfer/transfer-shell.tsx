@@ -14,7 +14,7 @@ export default function TransferShell() {
       </div>
 
       <CanisterProvider>
-        <div className="relative mx-auto flex min-h-screen w-full max-w-none items-start gap-6 px-4 py-4 sm:px-6">
+        <div className="relative mx-auto flex min-h-screen w-full max-w-none items-start gap-4 px-4 py-4 sm:px-6">
           <TransferSidebar />
           <TransferWorkspace />
         </div>
