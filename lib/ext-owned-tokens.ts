@@ -78,10 +78,8 @@ function normalizeIndexes(value: unknown): number[] {
   const iterable: unknown[] = [];
   if (Array.isArray(value)) {
     iterable.push(...value);
-  } else if (ArrayBuffer.isView(value)) {
-    const view = value;
-    const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-    iterable.push(...bytes);
+  } else if (value instanceof Uint32Array) {
+    iterable.push(...value);
   }
   if (iterable.length === 0) {
     return [];

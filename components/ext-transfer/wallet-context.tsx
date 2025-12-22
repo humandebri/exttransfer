@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { HttpAgent } from "@dfinity/agent";
 import { Principal } from "@dfinity/principal";
-import { StoicIdentity } from "ic-stoic-identity";
 import type { Agent } from "@dfinity/agent";
 
 import { deriveAccountId } from "@/lib/ic-account";
@@ -77,6 +76,11 @@ const walletDefaults: WalletState[] = [
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
+async function loadStoicIdentity() {
+  const module = await import("ic-stoic-identity");
+  return module.StoicIdentity;
+}
+
 function getPlugProvider(): PlugProvider | null {
   return window.ic?.plug ?? null;
 }
@@ -139,6 +143,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
 
         if (id === "stoic") {
+          const StoicIdentity = await loadStoicIdentity();
           const identity = await StoicIdentity.connect();
           const agent = new HttpAgent({ host: IC_HOST, identity });
           const principalText = identity.getPrincipal().toString();
@@ -209,6 +214,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
       }
       if (id === "stoic") {
+        const StoicIdentity = await loadStoicIdentity();
         StoicIdentity.disconnect();
       }
       if (id === "oisy") {

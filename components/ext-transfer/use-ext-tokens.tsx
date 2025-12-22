@@ -85,7 +85,7 @@ export function useExtTokens() {
           );
           const tokenText = tokenIdentifier;
           return {
-            id: `${selectedCanister.id}-${tokenText}`,
+            id: `${selectedCanister.id}-${tokenIndex}-${entryIndex}`,
             label: `#${tokenIndex + 1}`,
             collection: selectedCanister.name,
             tokenId: `#${tokenIndex + 1}`,

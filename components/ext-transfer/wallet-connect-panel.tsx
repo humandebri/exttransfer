@@ -31,7 +31,6 @@ export default function WalletConnectPanel() {
         <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
           Wallets
         </p>
-        <span className="text-xs text-zinc-500">Active: {activeWalletLabel}</span>
       </div>
       <div className="flex flex-col gap-2">
         {wallets.map((wallet) => {
@@ -96,11 +95,6 @@ export default function WalletConnectPanel() {
               </div>
               {wallet.error ? (
                 <p className="mt-2 text-xs text-rose-500">{wallet.error}</p>
-              ) : null}
-              {wallet.id === "plug" && connected && canisterHint ? (
-                <p className="mt-2 text-[11px] text-zinc-400">
-                  Whitelisted: {shorten(canisterHint)}
-                </p>
               ) : null}
             </div>
           );
