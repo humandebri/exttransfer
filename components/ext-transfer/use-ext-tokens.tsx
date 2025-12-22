@@ -101,7 +101,7 @@ export function useExtTokens() {
     } catch {
       setState({ tokens: [], loading: false, error: "Failed to load tokens." });
     }
-  }, [agent, hasAccount, selectedCanister]);
+  }, [agent, hasAccount, selectedCanister, accountId]);
 
   useEffect(() => {
     if (!agent || !hasAccount || !selectedCanister) {

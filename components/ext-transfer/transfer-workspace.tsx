@@ -27,6 +27,12 @@ import { useWalletMeta } from "@/components/ext-transfer/use-wallet-meta";
 import { useCanisters } from "@/components/ext-transfer/canister-store";
 import { useExtTokens } from "@/components/ext-transfer/use-ext-tokens";
 import { useWallets } from "@/components/ext-transfer/wallet-context";
+import TransferProgressModal, {
+  type TransferLogEntry,
+} from "@/components/ext-transfer/transfer-progress-modal";
+import TransferStatusToast, {
+  type TransferLogEntry as ToastLogEntry,
+} from "@/components/ext-transfer/transfer-status-toast";
 import {
   formatTransferError,
   transferIdlFactory,
@@ -41,13 +47,6 @@ import {
 } from "@/lib/ext-transfer-icrc";
 
 type TransferMode = "principal" | "account";
-type TransferStatus = "idle" | "pending" | "success" | "error";
-type TransferLogEntry = {
-  tokenId: string;
-  label: string;
-  status: TransferStatus;
-  detail?: string;
-};
 
 function isValidAccountId(value: string): boolean {
   const normalized = value.startsWith("0x") ? value.slice(2) : value;
@@ -62,8 +61,10 @@ export default function TransferWorkspace() {
   const [transferLog, setTransferLog] = useState<TransferLogEntry[]>([]);
   const [transferRunning, setTransferRunning] = useState(false);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
+  const [showToast, setShowToast] = useState(false);
   const { accountId } = useWalletMeta();
-  const { activeWallet, ensureActiveCanisterAccess } = useWallets();
+  const { activeWallet, ensureActiveCanisterAccess, wallets } = useWallets();
   const { selectedCanister } = useCanisters();
   const { tokens, loading } = useExtTokens();
   const walletReady =
@@ -105,12 +106,26 @@ export default function TransferWorkspace() {
     walletReady &&
     isRecipientValid;
 
+  const connectedRecipients = useMemo(() => {
+    return wallets.filter(
+      (wallet) =>
+        wallet.status === "connected" &&
+        wallet.accountId &&
+        wallet.id !== activeWallet?.id
+    );
+  }, [wallets, activeWallet]);
+
   const selectedLabel = useMemo(() => {
     if (selectedCount === 0) {
       return "Select NFTs to enable bulk transfer";
     }
     return `${selectedCount} selected for transfer`;
   }, [selectedCount]);
+
+  const toastLog = useMemo<ToastLogEntry[]>(
+    () => transferLog.map((entry) => ({ ...entry })),
+    [transferLog]
+  );
 
   useEffect(() => {
     const validIds = new Set(displayTokens.map((item) => item.id));
@@ -134,11 +149,11 @@ export default function TransferWorkspace() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-4">
+    <main className="flex flex-1 flex-col gap-4 self-stretch min-h-0">
       <header className="flex flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-4 shadow-sm">
         <div className="flex w-full items-start gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 font-[var(--font-display)] sm:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 font-[var(--font-display)] sm:text-2xl">
               {selectedTitle}
             </h1>
           </div>
@@ -155,7 +170,7 @@ export default function TransferWorkspace() {
         {/* ヘッダーは簡潔に保つためステータス行は省略する。 */}
       </header>
 
-      <section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm">
+      <section className="flex flex-1 flex-col min-h-0 rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <Checkbox
@@ -173,7 +188,16 @@ export default function TransferWorkspace() {
             </div>
           </div>
           {/* 転送先入力はウォレット接続後に有効化される前提。 */}
-          <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+          <Dialog
+            open={transferDialogOpen}
+            onOpenChange={(open) => {
+              setTransferDialogOpen(open);
+              if (open) {
+                setTransferLog([]);
+                setRecipient("");
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button className="rounded-full" disabled={selectedCount === 0}>
                 <Send className="mr-2 h-4 w-4" />
@@ -220,6 +244,29 @@ export default function TransferWorkspace() {
                     </p>
                   ) : null}
                 </div>
+                {connectedRecipients.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                      Connected wallets
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {connectedRecipients.map((wallet) => (
+                        <Button
+                          key={wallet.id}
+                          type="button"
+                          variant="secondary"
+                          className="rounded-full"
+                          onClick={() => {
+                            setTransferMode("account");
+                            setRecipient(wallet.accountId ?? "");
+                          }}
+                        >
+                          {wallet.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
                   {selectedCount} NFTs will be transferred sequentially.
                 </div>
@@ -259,7 +306,6 @@ export default function TransferWorkspace() {
                 </div>
               ) : null}
               <DialogFooter>
-                <Button variant="secondary">Save draft</Button>
                 <Button
                   disabled={!canSubmitTransfer}
                   onClick={async () => {
@@ -276,6 +322,9 @@ export default function TransferWorkspace() {
                       return;
                     }
                     setTransferRunning(true);
+                    setTransferDialogOpen(false);
+                    setProgressDialogOpen(true);
+                    setShowToast(false);
                     await ensureActiveCanisterAccess(selectedCanister.id);
                     setTransferLog(
                       selectedTokens.map((token) => ({
@@ -409,6 +458,7 @@ export default function TransferWorkspace() {
                       }
                     }
                     setTransferRunning(false);
+                    setShowToast(true);
                   }}
                 >
                   {transferRunning ? "Transferring..." : "Confirm transfer"}
@@ -416,9 +466,19 @@ export default function TransferWorkspace() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          <TransferProgressModal
+            open={progressDialogOpen}
+            onOpenChange={(open) => {
+              setProgressDialogOpen(open);
+              if (!open) {
+                setShowToast(true);
+              }
+            }}
+            transferLog={transferLog}
+          />
         </div>
 
-        <ScrollArea className="mt-6 h-[420px] pr-2">
+        <ScrollArea className="mt-6 min-h-0 flex-1 pr-2">
           {loading ? (
             <TransferTokenSkeleton />
           ) : displayTokens.length === 0 ? (
@@ -434,6 +494,13 @@ export default function TransferWorkspace() {
           )}
         </ScrollArea>
       </section>
+      <TransferStatusToast
+        open={showToast && transferLog.length > 0}
+        running={transferRunning}
+        transferLog={toastLog}
+        onDismiss={() => setShowToast(false)}
+        onViewDetails={() => setProgressDialogOpen(true)}
+      />
 
     </main>
   );

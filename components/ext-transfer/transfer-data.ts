@@ -41,6 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export const CANISTERS: CanisterEntry[] = [
+  { id: "mntgc-lqaaa-aaaag-qcmyq-cai", name: "ICPPUNK", status: "Active" },
   { id: "oeee4-qaaaa-aaaak-qaaeq-cai", name: "Motoko Ghosts", status: "Active" },
   { id: "pk6rk-6aaaa-aaaae-qaazq-cai", name: "BTC Flower", status: "Active" },
   { id: "dhiaa-ryaaa-aaaae-qabva-cai", name: "ETH Flower", status: "Active" },

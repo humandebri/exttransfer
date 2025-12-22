@@ -47,6 +47,21 @@ export default function WalletConnectPanel() {
                   ? "border-zinc-900/40 bg-zinc-50"
                   : "border-zinc-200/60 bg-white"
               }`}
+              role={connected ? "button" : undefined}
+              tabIndex={connected ? 0 : undefined}
+              onClick={() => {
+                if (connected && !isActive) {
+                  setActiveWalletId(wallet.id);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (!connected || isActive) {
+                  return;
+                }
+                if (event.key === "Enter" || event.key === " ") {
+                  setActiveWalletId(wallet.id);
+                }
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -58,15 +73,6 @@ export default function WalletConnectPanel() {
                 <div className="flex items-center gap-2">
                   {connected ? (
                     <>
-                      <Button
-                        size="sm"
-                        variant={isActive ? "secondary" : "outline"}
-                        className="rounded-full"
-                        onClick={() => setActiveWalletId(wallet.id)}
-                        disabled={isActive}
-                      >
-                        {isActive ? "Active" : "Use"}
-                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"
