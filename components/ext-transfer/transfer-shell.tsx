@@ -1,4 +1,5 @@
-// components/ext-transfer/transfer-shell.tsx: Layout wrapper that applies the background and grid.
+// components/ext-transfer/transfer-shell.tsx: Layout wrapper that applies background and shared providers.
+import { CanisterProvider } from "@/components/ext-transfer/canister-store";
 import TransferSidebar from "@/components/ext-transfer/transfer-sidebar";
 import TransferWorkspace from "@/components/ext-transfer/transfer-workspace";
 
@@ -12,10 +13,12 @@ export default function TransferShell() {
         <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-stone-200/70 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen max-w-6xl gap-6 px-4 py-6 sm:px-6">
-        <TransferSidebar />
-        <TransferWorkspace />
-      </div>
+      <CanisterProvider>
+        <div className="relative mx-auto flex min-h-screen w-full max-w-none items-start gap-6 px-4 py-4 sm:px-6">
+          <TransferSidebar />
+          <TransferWorkspace />
+        </div>
+      </CanisterProvider>
     </div>
   );
 }

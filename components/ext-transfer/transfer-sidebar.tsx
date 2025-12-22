@@ -17,21 +17,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import {
-  CANISTERS,
-  NAV_ITEMS,
-  type CanisterEntry,
-} from "@/components/ext-transfer/transfer-data";
+import { type CanisterEntry } from "@/components/ext-transfer/transfer-data";
+import { useCanisters } from "@/components/ext-transfer/canister-store";
 
 export default function TransferSidebar() {
-  const [canisters, setCanisters] = useState<CanisterEntry[]>(() => [
-    ...CANISTERS,
-  ]);
+  const { canisters, addCanister, updateCanister, removeCanister } = useCanisters();
   const [modalOpen, setModalOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [activeCanister, setActiveCanister] = useState<CanisterEntry | null>(null);
   const [canisterId, setCanisterId] = useState("");
   const [canisterName, setCanisterName] = useState("");
+  const [editName, setEditName] = useState("");
 
   const canSubmit = canisterId.trim().length > 0;
+  const canEdit = editName.trim().length > 0 && activeCanister !== null;
 
   const handleAddCanister = () => {
     if (!canSubmit) {
@@ -44,14 +43,36 @@ export default function TransferSidebar() {
       name: trimmedName,
       status: "Active",
     };
-    setCanisters((prev) => [next, ...prev]);
+    addCanister(next);
     setCanisterId("");
     setCanisterName("");
     setModalOpen(false);
   };
 
+  const handleOpenEdit = (canister: CanisterEntry) => {
+    setActiveCanister(canister);
+    setEditName(canister.name);
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!activeCanister || !canEdit) {
+      return;
+    }
+    updateCanister(activeCanister.id, { name: editName.trim() });
+    setEditOpen(false);
+  };
+
+  const handleDelete = () => {
+    if (!activeCanister) {
+      return;
+    }
+    removeCanister(activeCanister.id);
+    setEditOpen(false);
+  };
+
   return (
-    <aside className="hidden w-72 flex-col gap-6 rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm lg:flex">
+    <aside className="hidden w-72 flex-col gap-6 rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm lg:flex self-stretch">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">EXT</p>
@@ -63,38 +84,6 @@ export default function TransferSidebar() {
           v1.0
         </span>
       </div>
-
-      <Separator />
-
-      <nav className="flex flex-col gap-2">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.label}
-            className={`flex items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition ${
-              item.active
-                ? "bg-zinc-900 text-white shadow-sm"
-                : "text-zinc-600 hover:bg-zinc-100"
-            }`}
-            type="button"
-          >
-            <span className="flex items-center gap-3">
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </span>
-            {item.badge ? (
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs ${
-                  item.active
-                    ? "bg-white/20 text-white"
-                    : "bg-zinc-200 text-zinc-700"
-                }`}
-              >
-                {item.badge}
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </nav>
 
       <Separator />
 
@@ -150,25 +139,78 @@ export default function TransferSidebar() {
             </DialogContent>
           </Dialog>
         </div>
-        <ScrollArea className="h-64 pr-2">
+        <ScrollArea className="max-h-[calc(100vh-240px)] pr-2">
           <div className="flex flex-col gap-2">
             {canisters.map((canister) => (
               <div
                 key={canister.id}
                 className="rounded-2xl border border-zinc-200/60 bg-white px-3 py-2"
               >
-                <p className="text-sm font-medium text-zinc-900">
-                  {canister.name}
-                </p>
-                <p className="text-xs text-zinc-500">{canister.id}</p>
-                <p className="mt-1 text-xs text-emerald-600">
-                  {canister.status}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-900">
+                      {canister.name}
+                    </p>
+                    <p className="text-xs text-zinc-500">{canister.id}</p>
+                    <p className="mt-1 text-xs text-emerald-600">
+                      {canister.status}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-zinc-500"
+                    onClick={() => handleOpenEdit(canister)}
+                  >
+                    Edit
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
         </ScrollArea>
       </div>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit canister</DialogTitle>
+            <DialogDescription>
+              Update the label or remove this collection.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-canister-id">Canister ID</Label>
+              <Input
+                id="edit-canister-id"
+                value={activeCanister?.id ?? ""}
+                readOnly
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-canister-name">Name</Label>
+              <Input
+                id="edit-canister-name"
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="justify-between sm:justify-between">
+            <Button variant="outline" onClick={handleDelete}>
+              Remove
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={!canEdit}>
+                Save
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }

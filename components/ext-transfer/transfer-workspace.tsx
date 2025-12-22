@@ -1,12 +1,10 @@
 "use client";
 
 // components/ext-transfer/transfer-workspace.tsx: Main interactive area with selection, filtering, and modal.
-import { useMemo, useState } from "react";
-import { ConnectWallet } from "@nfid/identitykit/react";
-import { ChevronRight, LoaderCircle, Send } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -21,45 +19,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  FILTER_TABS,
-  NFT_ITEMS,
-  type NftItem,
-} from "@/components/ext-transfer/transfer-data";
+import IdentityKitConnect from "@/components/ext-transfer/identitykit-connect";
+import { FILTER_TABS, NFT_ITEMS } from "@/components/ext-transfer/transfer-data";
+import TransferTokenGrid from "@/components/ext-transfer/transfer-token-grid";
+import { useWalletMeta } from "@/components/ext-transfer/use-wallet-meta";
 
 type TransferMode = "principal" | "account";
-
-type StatCard = {
-  label: string;
-  value: string;
-  note: string;
-};
-
-const STAT_CARDS: StatCard[] = [
-  {
-    label: "Active canisters",
-    value: "12",
-    note: "Across 4 collections",
-  },
-  {
-    label: "Queued transfers",
-    value: "24",
-    note: "5.4% completion drift",
-  },
-  {
-    label: "Coverage",
-    value: "63.9%",
-    note: "Tokens mapped with images",
-  },
-];
 
 export default function TransferWorkspace() {
   // Selection stays local to keep UI responsive before canister wiring.
   const [selectedIds, setSelectedIds] = useState<string[]>(["nft-01", "nft-04"]);
   const [transferMode, setTransferMode] = useState<TransferMode>("principal");
+  const { accountId } = useWalletMeta();
+  const shortAccountId =
+    accountId === "Not connected"
+      ? accountId
+      : `${accountId.slice(0, 8)}...${accountId.slice(-6)}`;
+  const fallbackTokens = useMemo(
+    () =>
+      NFT_ITEMS.map((item) => ({
+        id: item.id,
+        label: item.name,
+        collection: item.collection,
+        tokenId: item.tokenId,
+        tone: item.tone,
+        rarity: item.rarity,
+      })),
+    []
+  );
 
+  const displayTokens = fallbackTokens;
   const selectedCount = selectedIds.length;
-  const allSelected = selectedCount === NFT_ITEMS.length;
+  const allSelected = selectedCount === displayTokens.length;
 
   const selectedLabel = useMemo(() => {
     if (selectedCount === 0) {
@@ -68,9 +59,14 @@ export default function TransferWorkspace() {
     return `${selectedCount} selected for transfer`;
   }, [selectedCount]);
 
+  useEffect(() => {
+    const validIds = new Set(displayTokens.map((item) => item.id));
+    setSelectedIds((prev) => prev.filter((id) => validIds.has(id)));
+  }, [displayTokens]);
+
   const handleSelectAllChange = (checked: boolean | "indeterminate") => {
     if (checked === true) {
-      setSelectedIds(NFT_ITEMS.map((item) => item.id));
+      setSelectedIds(displayTokens.map((item) => item.id));
       return;
     }
     setSelectedIds([]);
@@ -95,11 +91,13 @@ export default function TransferWorkspace() {
             <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 font-[var(--font-display)] sm:text-4xl">
               Dispatch NFTs with precision
             </h1>
+            <p className="mt-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
+              Account ID
+            </p>
+            <p className="text-sm font-medium text-zinc-900">{shortAccountId}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-sm text-zinc-600 shadow-sm">
-              <ConnectWallet />
-            </div>
+            <IdentityKitConnect />
             <Button className="rounded-full">
               <Send className="mr-2 h-4 w-4" />
               New Transfer
@@ -108,28 +106,6 @@ export default function TransferWorkspace() {
         </div>
         {/* Status strip intentionally omitted to keep the header minimal. */}
       </header>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        {STAT_CARDS.map((stat, index) => (
-          <Card
-            key={stat.label}
-            className="border-zinc-200/70 bg-white/80 shadow-sm"
-          >
-            <CardContent
-              className="flex flex-col gap-2 p-6 opacity-0 animate-[fade-in_0.6s_ease-out_forwards]"
-              style={{ animationDelay: `${index * 0.08}s` }}
-            >
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                {stat.label}
-              </p>
-              <p className="text-3xl font-semibold text-zinc-900">
-                {stat.value}
-              </p>
-              <p className="text-sm text-zinc-500">{stat.note}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
 
       <section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -220,17 +196,11 @@ export default function TransferWorkspace() {
         </div>
 
         <ScrollArea className="mt-6 h-[420px] pr-2">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {NFT_ITEMS.map((item, index) => (
-              <NftCard
-                key={item.id}
-                item={item}
-                index={index}
-                isSelected={selectedIds.includes(item.id)}
-                onToggle={handleToggleItem}
-              />
-            ))}
-          </div>
+          <TransferTokenGrid
+            tokens={displayTokens}
+            selectedIds={selectedIds}
+            onToggle={handleToggleItem}
+          />
         </ScrollArea>
       </section>
 
@@ -241,44 +211,5 @@ export default function TransferWorkspace() {
         </span>
       </footer>
     </main>
-  );
-}
-
-type NftCardProps = {
-  item: NftItem;
-  index: number;
-  isSelected: boolean;
-  onToggle: (id: string, checked: boolean | "indeterminate") => void;
-};
-
-function NftCard({ item, index, isSelected, onToggle }: NftCardProps) {
-  return (
-    <Card className="group overflow-hidden rounded-3xl border-zinc-200/70 bg-white">
-      <CardContent
-        className="relative flex flex-col gap-4 p-4 opacity-0 animate-[fade-in_0.6s_ease-out_forwards]"
-        style={{ animationDelay: `${0.1 + index * 0.05}s` }}
-      >
-        <div className={`h-40 rounded-2xl bg-gradient-to-br ${item.tone}`}>
-          <div className="flex h-full items-end justify-between p-3">
-            <span className="rounded-full bg-white/70 px-2 py-1 text-xs text-zinc-700">
-              {item.rarity}
-            </span>
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={(checked) => onToggle(item.id, checked)}
-              aria-label={`Select ${item.name}`}
-            />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm text-zinc-500">{item.collection}</p>
-          <p className="text-lg font-semibold text-zinc-900">{item.name}</p>
-          <p className="text-xs text-zinc-500">{item.tokenId}</p>
-        </div>
-        <Button variant="secondary" className="mt-auto w-full rounded-full">
-          Preview
-        </Button>
-      </CardContent>
-    </Card>
   );
 }
