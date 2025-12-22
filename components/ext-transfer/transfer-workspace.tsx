@@ -3,6 +3,8 @@
 // components/ext-transfer/transfer-workspace.tsx: Main interactive area with selection, filtering, and modal.
 import { useEffect, useMemo, useState } from "react";
 import { Send } from "lucide-react";
+import { Principal } from "@dfinity/principal";
+import { useAgent } from "@nfid/identitykit/react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,16 +28,33 @@ import TransferTokenSkeleton from "@/components/ext-transfer/transfer-token-skel
 import { useWalletMeta } from "@/components/ext-transfer/use-wallet-meta";
 import { useCanisters } from "@/components/ext-transfer/canister-store";
 import { useExtTokens } from "@/components/ext-transfer/use-ext-tokens";
+import {
+  formatTransferError,
+  transferExtToken,
+} from "@/lib/ext-transfer";
+import { IC_HOST } from "@/lib/runtime-config";
 
 type TransferMode = "principal" | "account";
+type TransferStatus = "idle" | "pending" | "success" | "error";
+type TransferLogEntry = {
+  tokenId: string;
+  label: string;
+  status: TransferStatus;
+  detail?: string;
+};
 
 export default function TransferWorkspace() {
   // Selection stays local to keep UI responsive before canister wiring.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [transferMode, setTransferMode] = useState<TransferMode>("principal");
+  const [recipient, setRecipient] = useState("");
+  const [transferLog, setTransferLog] = useState<TransferLogEntry[]>([]);
+  const [transferRunning, setTransferRunning] = useState(false);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const { accountId } = useWalletMeta();
   const { selectedCanister } = useCanisters();
   const { tokens, loading } = useExtTokens();
+  const agent = useAgent({ host: IC_HOST });
   const shortAccountId =
     accountId === "Not connected"
       ? accountId
@@ -115,7 +134,7 @@ export default function TransferWorkspace() {
             </div>
           </div>
           {/* Transfer dialog is ready for wiring once EXT transfer is connected. */}
-          <Dialog>
+          <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
             <DialogTrigger asChild>
               <Button className="rounded-full" disabled={selectedCount === 0}>
                 <Send className="mr-2 h-4 w-4" />
@@ -148,6 +167,8 @@ export default function TransferWorkspace() {
                   <Label htmlFor="recipient">Recipient</Label>
                   <Input
                     id="recipient"
+                    value={recipient}
+                    onChange={(event) => setRecipient(event.target.value)}
                     placeholder={
                       transferMode === "principal" ? "aaaaa-aa" : "a3b4...f8"
                     }
@@ -157,9 +178,138 @@ export default function TransferWorkspace() {
                   {selectedCount} NFTs will be transferred sequentially.
                 </div>
               </div>
+              {transferLog.length > 0 ? (
+                <div className="max-h-56 space-y-2 overflow-auto rounded-2xl border border-zinc-200 bg-white p-3 text-sm text-zinc-700">
+                  {transferLog.map((entry) => (
+                    <div
+                      key={entry.tokenId}
+                      className="space-y-1 rounded-xl border border-zinc-100 px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="truncate text-zinc-800">
+                          {entry.label}
+                        </span>
+                        <span
+                          className={`text-xs uppercase tracking-[0.2em] ${
+                            entry.status === "success"
+                              ? "text-emerald-600"
+                              : entry.status === "error"
+                                ? "text-rose-500"
+                                : entry.status === "pending"
+                                  ? "text-amber-500"
+                                  : "text-zinc-400"
+                          }`}
+                        >
+                          {entry.status}
+                        </span>
+                      </div>
+                      {entry.detail ? (
+                        <p className="text-xs text-zinc-500">
+                          {entry.detail}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <DialogFooter>
                 <Button variant="secondary">Save draft</Button>
-                <Button>Confirm transfer</Button>
+                <Button
+                  disabled={
+                    transferRunning ||
+                    selectedCount === 0 ||
+                    !recipient.trim() ||
+                    !selectedCanister ||
+                    accountId === "Not connected" ||
+                    !agent
+                  }
+                  onClick={async () => {
+                    if (!selectedCanister || !agent) {
+                      return;
+                    }
+                    const trimmedRecipient = recipient.trim();
+                    if (!trimmedRecipient) {
+                      return;
+                    }
+                    const selectedTokens = displayTokens.filter((token) =>
+                      selectedIds.includes(token.id)
+                    );
+                    if (selectedTokens.length === 0) {
+                      return;
+                    }
+                    setTransferRunning(true);
+                    setTransferLog(
+                      selectedTokens.map((token) => ({
+                        tokenId: token.id,
+                        label: token.label,
+                        status: "pending",
+                      }))
+                    );
+                    for (const token of selectedTokens) {
+                      try {
+                        const response = await transferExtToken(
+                          agent,
+                          selectedCanister.id,
+                          {
+                            to:
+                              transferMode === "principal"
+                                ? {
+                                    principal: Principal.fromText(
+                                      trimmedRecipient
+                                    ),
+                                  }
+                                : { address: trimmedRecipient },
+                            token: token.tokenIdentifier,
+                            notify: false,
+                            from: { address: accountId },
+                            memo: [],
+                            subaccount: [],
+                            amount: 1n,
+                          }
+                        );
+                        if ("err" in response) {
+                          setTransferLog((prev) =>
+                          prev.map((entry) =>
+                            entry.tokenId === token.id
+                              ? {
+                                  ...entry,
+                                  status: "error",
+                                  detail: formatTransferError(response.err),
+                                }
+                              : entry
+                          )
+                        );
+                          continue;
+                        }
+                        setTransferLog((prev) =>
+                          prev.map((entry) =>
+                            entry.tokenId === token.id
+                              ? { ...entry, status: "success" }
+                              : entry
+                          )
+                        );
+                      } catch (error) {
+                        setTransferLog((prev) =>
+                          prev.map((entry) =>
+                            entry.tokenId === token.id
+                              ? {
+                                  ...entry,
+                                  status: "error",
+                                  detail:
+                                    error instanceof Error
+                                      ? error.message
+                                      : "Unknown error",
+                                }
+                              : entry
+                          )
+                        );
+                      }
+                    }
+                    setTransferRunning(false);
+                  }}
+                >
+                  {transferRunning ? "Transferring..." : "Confirm transfer"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

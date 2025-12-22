@@ -18,6 +18,7 @@ export type DisplayToken = {
   tone: string;
   rarity: string;
   imageUrl?: string;
+  tokenIdentifier: string;
 };
 
 type TokensState = {
@@ -90,6 +91,7 @@ export function useExtTokens() {
             imageUrl: `https://${selectedCanister.id}.raw.icp0.io/?cc=0&type=thumbnail&tokenid=${encodeURIComponent(
               tokenText
             )}`,
+            tokenIdentifier: tokenText,
           };
         });
       setState({ tokens, loading: false, error: null });
