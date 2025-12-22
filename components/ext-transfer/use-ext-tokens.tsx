@@ -51,6 +51,7 @@ export function useExtTokens() {
 
   const refresh = useCallback(async () => {
     if (!agent || !hasAccount || !selectedCanister) {
+      setState({ tokens: [], loading: false, error: null });
       return;
     }
     setState({ tokens: [], loading: true, error: null });
@@ -81,9 +82,9 @@ export function useExtTokens() {
           const tokenText = tokenIdentifier;
           return {
             id: `${selectedCanister.id}-${tokenText}`,
-            label: `#${entry.tokenIndex}`,
+            label: `#${entry.tokenIndex + 1}`,
             collection: selectedCanister.name,
-            tokenId: tokenText,
+            tokenId: `#${entry.tokenIndex + 1}`,
             tone: TOKEN_TONES[entryIndex % TOKEN_TONES.length],
             rarity: RARITY_LABELS[entryIndex % RARITY_LABELS.length],
             imageUrl: `https://${selectedCanister.id}.raw.icp0.io/?cc=0&type=thumbnail&tokenid=${encodeURIComponent(

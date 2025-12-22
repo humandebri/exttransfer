@@ -18,7 +18,7 @@ export default function TransferTokenGrid({
   onToggle,
 }: TokenGridProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {tokens.map((item, index) => (
         <TokenCard
           key={item.id}
@@ -41,13 +41,27 @@ type TokenCardProps = {
 
 function TokenCard({ item, index, isSelected, onToggle }: TokenCardProps) {
   return (
-    <Card className="group overflow-hidden rounded-3xl border-zinc-200/70 bg-white">
+    <Card
+      className={`group overflow-hidden rounded-3xl border bg-white transition ${
+        isSelected
+          ? "border-zinc-900/60 ring-2 ring-zinc-900/20 shadow-md"
+          : "border-zinc-200/70 shadow-sm"
+      }`}
+    >
       <CardContent
-        className="relative flex flex-col gap-4 p-4 opacity-0 animate-[fade-in_0.6s_ease-out_forwards]"
+        className="relative flex flex-col gap-3 p-3 opacity-0 animate-[fade-in_0.6s_ease-out_forwards]"
         style={{ animationDelay: `${0.1 + index * 0.05}s` }}
       >
         <div
+          role="button"
+          tabIndex={0}
           className={`relative aspect-square overflow-hidden rounded-2xl bg-gradient-to-br ${item.tone}`}
+          onClick={() => onToggle(item.id, !isSelected)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              onToggle(item.id, !isSelected);
+            }
+          }}
         >
           {item.imageUrl ? (
             <img
@@ -57,10 +71,7 @@ function TokenCard({ item, index, isSelected, onToggle }: TokenCardProps) {
               loading="lazy"
             />
           ) : null}
-          <div className="absolute inset-0 flex items-end justify-between p-3">
-            <span className="rounded-full bg-white/70 px-2 py-1 text-xs text-zinc-700">
-              {item.rarity}
-            </span>
+          <div className="absolute inset-0 flex items-end justify-end p-3">
             <Checkbox
               checked={isSelected}
               onCheckedChange={(checked) => onToggle(item.id, checked)}
@@ -69,13 +80,8 @@ function TokenCard({ item, index, isSelected, onToggle }: TokenCardProps) {
           </div>
         </div>
         <div className="space-y-1">
-          <p className="text-sm text-zinc-500">{item.collection}</p>
           <p className="text-lg font-semibold text-zinc-900">{item.label}</p>
-          <p className="text-xs text-zinc-500">{item.tokenId}</p>
         </div>
-        <Button variant="secondary" className="mt-auto w-full rounded-full">
-          Preview
-        </Button>
       </CardContent>
     </Card>
   );

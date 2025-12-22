@@ -20,8 +20,9 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import IdentityKitConnect from "@/components/ext-transfer/identitykit-connect";
-import { FILTER_TABS, NFT_ITEMS } from "@/components/ext-transfer/transfer-data";
+import { FILTER_TABS } from "@/components/ext-transfer/transfer-data";
 import TransferTokenGrid from "@/components/ext-transfer/transfer-token-grid";
+import TransferTokenSkeleton from "@/components/ext-transfer/transfer-token-skeleton";
 import { useWalletMeta } from "@/components/ext-transfer/use-wallet-meta";
 import { useCanisters } from "@/components/ext-transfer/canister-store";
 import { useExtTokens } from "@/components/ext-transfer/use-ext-tokens";
@@ -30,30 +31,17 @@ type TransferMode = "principal" | "account";
 
 export default function TransferWorkspace() {
   // Selection stays local to keep UI responsive before canister wiring.
-  const [selectedIds, setSelectedIds] = useState<string[]>(["nft-01", "nft-04"]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [transferMode, setTransferMode] = useState<TransferMode>("principal");
   const { accountId } = useWalletMeta();
   const { selectedCanister } = useCanisters();
-  const { tokens } = useExtTokens();
+  const { tokens, loading } = useExtTokens();
   const shortAccountId =
     accountId === "Not connected"
       ? accountId
       : `${accountId.slice(0, 8)}...${accountId.slice(-6)}`;
   const selectedTitle = selectedCanister?.name ?? "Select a collection";
-  const fallbackTokens = useMemo(
-    () =>
-      NFT_ITEMS.map((item) => ({
-        id: item.id,
-        label: item.name,
-        collection: item.collection,
-        tokenId: item.tokenId,
-        tone: item.tone,
-        rarity: item.rarity,
-      })),
-    []
-  );
-
-  const displayTokens = tokens.length > 0 ? tokens : fallbackTokens;
+  const displayTokens = tokens;
   const selectedCount = selectedIds.length;
   const allSelected = selectedCount === displayTokens.length;
 
@@ -191,18 +179,23 @@ export default function TransferWorkspace() {
             <Button variant="secondary" className="rounded-full">
               Queue tokens
             </Button>
-            <Button variant="outline" className="rounded-full">
-              Export list
-            </Button>
           </div>
         </div>
 
         <ScrollArea className="mt-6 h-[420px] pr-2">
-          <TransferTokenGrid
-            tokens={displayTokens}
-            selectedIds={selectedIds}
-            onToggle={handleToggleItem}
-          />
+          {loading ? (
+            <TransferTokenSkeleton />
+          ) : displayTokens.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-600">
+              No tokens
+            </div>
+          ) : (
+            <TransferTokenGrid
+              tokens={displayTokens}
+              selectedIds={selectedIds}
+              onToggle={handleToggleItem}
+            />
+          )}
         </ScrollArea>
       </section>
 
