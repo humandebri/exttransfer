@@ -2,3 +2,4 @@
 
 export const IC_HOST = "https://icp-api.io";
 export const OISY_SIGNER_URL = "https://oisy.com/sign";
+export const TRANSFER_TIMEOUT_MS = 30000;

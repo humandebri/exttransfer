@@ -2,7 +2,7 @@
 
 // components/ext-transfer/transfer-workspace.tsx: 選択と送信の主要UI。アクティブなウォレットで順次転送する。
 import { useEffect, useMemo, useState } from "react";
-import { Send } from "lucide-react";
+import { RefreshCcw, Send } from "lucide-react";
 import { Principal } from "@dfinity/principal";
 import { Principal as IcpPrincipal } from "@icp-sdk/core/principal";
 
@@ -39,7 +39,7 @@ import {
   type TransferActor,
   transferExtToken,
 } from "@/lib/ext-transfer";
-import { IC_HOST } from "@/lib/runtime-config";
+import { IC_HOST, TRANSFER_TIMEOUT_MS } from "@/lib/runtime-config";
 import {
   buildOisyTransferCallParams,
   decodeOisyTransferResponse,
@@ -47,6 +47,23 @@ import {
 } from "@/lib/ext-transfer-icrc";
 
 type TransferMode = "principal" | "account";
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error("Transfer timeout"));
+    }, timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
 
 function isValidAccountId(value: string): boolean {
   const normalized = value.startsWith("0x") ? value.slice(2) : value;
@@ -66,7 +83,7 @@ export default function TransferWorkspace() {
   const { accountId } = useWalletMeta();
   const { activeWallet, ensureActiveCanisterAccess, wallets } = useWallets();
   const { selectedCanister } = useCanisters();
-  const { tokens, loading } = useExtTokens();
+  const { tokens, loading, refresh } = useExtTokens();
   const walletReady =
     !!activeWallet &&
     activeWallet.status === "connected" &&
@@ -188,22 +205,33 @@ export default function TransferWorkspace() {
             </div>
           </div>
           {/* 転送先入力はウォレット接続後に有効化される前提。 */}
-          <Dialog
-            open={transferDialogOpen}
-            onOpenChange={(open) => {
-              setTransferDialogOpen(open);
-              if (open) {
-                setTransferLog([]);
-                setRecipient("");
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button className="rounded-full" disabled={selectedCount === 0}>
-                <Send className="mr-2 h-4 w-4" />
-                Bulk transfer
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="rounded-full"
+              disabled={loading}
+              onClick={() => refresh()}
+              aria-label="Reload tokens"
+            >
+              <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+            <Dialog
+              open={transferDialogOpen}
+              onOpenChange={(open) => {
+                setTransferDialogOpen(open);
+                if (open) {
+                  setTransferLog([]);
+                  setRecipient("");
+                }
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button className="rounded-full" disabled={selectedCount === 0}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Bulk transfer
+                </Button>
+              </DialogTrigger>
             <DialogContent className="rounded-2xl">
               <DialogHeader>
                 <DialogTitle>Transfer destination</DialogTitle>
@@ -335,10 +363,11 @@ export default function TransferWorkspace() {
                     );
                     for (const token of selectedTokens) {
                       try {
-                        const response = await (async () => {
-                          if (activeWallet.id === "oisy") {
-                            // OISYはICRC-49経由でcanister呼び出しを行う。
-                            const relyingParty = activeWallet.relyingParty;
+                        const response = await withTimeout(
+                          (async () => {
+                            if (activeWallet.id === "oisy") {
+                              // OISYはICRC-49経由でcanister呼び出しを行う。
+                              const relyingParty = activeWallet.relyingParty;
                             const senderPrincipal = activeWallet.principalText;
                             if (!relyingParty || !senderPrincipal) {
                               throw new Error("OISY wallet is not ready.");
@@ -398,27 +427,29 @@ export default function TransferWorkspace() {
                               subaccount: [],
                               amount: 1n,
                             });
-                          }
-                          if (!activeWallet.agent) {
-                            throw new Error("Active wallet agent missing.");
-                          }
-                          return transferExtToken(activeWallet.agent, selectedCanister.id, {
-                            to:
-                              transferMode === "principal"
-                                ? {
-                                    principal: Principal.fromText(
-                                      trimmedRecipient
-                                    ),
-                                  }
-                                : { address: trimmedRecipient },
-                            token: token.tokenIdentifier,
-                            notify: false,
-                            from: { address: accountId },
-                            memo: [],
-                            subaccount: [],
-                            amount: 1n,
-                          });
-                        })();
+                            }
+                            if (!activeWallet.agent) {
+                              throw new Error("Active wallet agent missing.");
+                            }
+                            return transferExtToken(activeWallet.agent, selectedCanister.id, {
+                              to:
+                                transferMode === "principal"
+                                  ? {
+                                      principal: Principal.fromText(
+                                        trimmedRecipient
+                                      ),
+                                    }
+                                  : { address: trimmedRecipient },
+                              token: token.tokenIdentifier,
+                              notify: false,
+                              from: { address: accountId },
+                              memo: [],
+                              subaccount: [],
+                              amount: 1n,
+                            });
+                          })(),
+                          TRANSFER_TIMEOUT_MS
+                        );
                         if ("err" in response) {
                           setTransferLog((prev) =>
                             prev.map((entry) =>
@@ -465,7 +496,8 @@ export default function TransferWorkspace() {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
           <TransferProgressModal
             open={progressDialogOpen}
             onOpenChange={(open) => {

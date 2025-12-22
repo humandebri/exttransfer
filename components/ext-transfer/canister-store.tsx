@@ -70,6 +70,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function mergeCanisters(stored: CanisterEntry[], defaults: CanisterEntry[]): CanisterEntry[] {
+  if (stored.length === 0) {
+    return defaults;
+  }
+  const storedIds = new Set(stored.map((entry) => entry.id));
+  const missingDefaults = defaults.filter((entry) => !storedIds.has(entry.id));
+  if (missingDefaults.length === 0) {
+    return stored;
+  }
+  return [...missingDefaults, ...stored];
+}
+
 export function CanisterProvider({ children }: { children: ReactNode }) {
   const [canisters, setCanisters] = useState<CanisterEntry[]>(() => CANISTERS);
   const [selectedCanisterId, setSelectedCanisterId] = useState<string | null>(
@@ -80,10 +92,9 @@ export function CanisterProvider({ children }: { children: ReactNode }) {
     const stored = parseStoredCanisters(
       typeof window === "undefined" ? null : window.localStorage.getItem(STORAGE_KEY)
     );
-    if (stored.length > 0) {
-      setCanisters(stored);
-      setSelectedCanisterId((prev) => prev ?? stored[0]?.id ?? null);
-    }
+    const merged = mergeCanisters(stored, CANISTERS);
+    setCanisters(merged);
+    setSelectedCanisterId((prev) => prev ?? merged[0]?.id ?? null);
   }, []);
 
   useEffect(() => {
