@@ -438,8 +438,7 @@ export default function TransferWorkspace() {
                                 params,
                               });
                               console.info("[exttransfer] oisy transfer result", {
-                                status: result.status,
-                                error: result.error,
+                                contentMap: result.contentMap,
                               });
                               return decodeOisyTransferResponse({
                                 params,
