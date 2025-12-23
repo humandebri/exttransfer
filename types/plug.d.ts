@@ -25,11 +25,21 @@ export type PlugProvider = {
   disconnect: () => void;
   createAgent: (params: PlugCreateAgentParams) => Promise<void>;
   createActor: <T>(params: PlugCreateActorParams) => Promise<T>;
+  batchTransactions: (transactions: PlugBatchTransaction[]) => Promise<unknown>;
   onExternalDisconnect: (callback: () => void) => void;
   onLockStateChange: (callback: (isLocked: boolean) => void) => void;
   agent?: HttpAgent;
   principalId?: string;
   accountId?: string;
+};
+
+export type PlugBatchTransaction = {
+  idl: IDL.InterfaceFactory;
+  canisterId: string;
+  methodName: string;
+  args: unknown[];
+  onSuccess?: (response: unknown) => void;
+  onFail?: (error: unknown) => void;
 };
 
 declare global {
