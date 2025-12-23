@@ -55,7 +55,7 @@ function TokenCard({ item, index, isSelected, onToggle }: TokenCardProps) {
         <div
           role="button"
           tabIndex={0}
-          className="relative aspect-square overflow-hidden rounded-2xl bg-transparent"
+          className={`relative aspect-square overflow-hidden rounded-2xl bg-gradient-to-br ${item.tone}`}
           onClick={() => onToggle(item.id, !isSelected)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {

@@ -87,9 +87,9 @@ export function useExtTokens() {
           const tokenText = tokenIdentifier;
           const imageUrl =
             selectedCanister.id === PINEAPPLE_PUNKS_CANISTER_ID
-              ? `https://${selectedCanister.id}.raw.icp0.io/?tokenid=${encodeURIComponent(
+              ? `https://images.entrepot.app/tnc/wtwf2-biaaa-aaaam-qauoq-cai/${encodeURIComponent(
                   tokenText
-                )}&type=thumbnail`
+                )}`
               : `https://${selectedCanister.id}.raw.icp0.io/?cc=0&type=thumbnail&tokenid=${encodeURIComponent(
                   tokenText
                 )}`;
