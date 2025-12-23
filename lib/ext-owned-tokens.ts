@@ -26,11 +26,23 @@ export async function fetchOwnedTokenIndexes(
   }
 
   const raw = response.reply.arg;
-  if (!(raw instanceof ArrayBuffer || raw instanceof Uint8Array)) {
+  if (!raw || typeof raw !== "object") {
     return { kind: "err", message: "Invalid response" };
   }
 
-  const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+  const bytes =
+    raw instanceof Uint8Array
+      ? raw
+      : raw instanceof ArrayBuffer
+        ? new Uint8Array(raw)
+        : null;
+  if (!bytes) {
+    return { kind: "err", message: "Invalid response" };
+  }
+  const buffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  );
   const decoded = IDL.decode(
     [
       IDL.Variant({
@@ -41,7 +53,7 @@ export async function fetchOwnedTokenIndexes(
         }),
       }),
     ],
-    bytes
+    buffer
   );
 
   if (!Array.isArray(decoded) || decoded.length === 0) {

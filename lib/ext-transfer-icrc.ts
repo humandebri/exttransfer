@@ -11,9 +11,11 @@ import {
   requestIdOf,
 } from "@icp-sdk/core/agent";
 import { Principal as IcpPrincipal } from "@icp-sdk/core/principal";
-import type { IcrcCallCanisterRequestParams } from "@dfinity/oisy-wallet-signer/types/icrc-requests";
-import type { IcrcCallCanisterResult } from "@dfinity/oisy-wallet-signer/types/icrc-responses";
-import type { RelyingPartyHost } from "@dfinity/oisy-wallet-signer/types/relying-party-options";
+import type {
+  IcrcCallCanisterRequestParams,
+  IcrcCallCanisterResult,
+  RelyingPartyHost,
+} from "@dfinity/oisy-wallet-signer";
 
 import { base64ToUint8Array, uint8ArrayToBase64 } from "@/lib/base64";
 import type { TransferError, TransferResponse } from "@/lib/ext-transfer";

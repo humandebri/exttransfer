@@ -8,7 +8,13 @@ import { Principal } from "@dfinity/principal";
 import type { Agent } from "@dfinity/agent";
 
 import { deriveAccountId } from "@/lib/ic-account";
-import { IC_HOST, OISY_SIGNER_URL, PLUG_HOST } from "@/lib/runtime-config";
+import {
+  IC_HOST,
+  OISY_SIGNER_URL,
+  PLUG_HOST,
+  STOIC_TRANSPORT,
+  STOIC_WALLET_URL,
+} from "@/lib/runtime-config";
 import { base64ToUint8Array } from "@/lib/base64";
 import { OisyRelyingParty } from "@/lib/oisy-relying-party";
 import type { PlugProvider } from "@/types/plug";
@@ -100,9 +106,16 @@ const walletDefaults: WalletState[] = [
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
+let stoicIdentityPromise: Promise<typeof import("ic-stoic-identity").StoicIdentity> | null =
+  null;
+
 async function loadStoicIdentity() {
-  const module = await import("ic-stoic-identity");
-  return module.StoicIdentity;
+  if (!stoicIdentityPromise) {
+    stoicIdentityPromise = import("ic-stoic-identity").then(
+      (module) => module.StoicIdentity
+    );
+  }
+  return stoicIdentityPromise;
 }
 
 function getPlugProvider(): PlugProvider | null {
@@ -130,6 +143,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [plugApprovedCanisters, setPlugApprovedCanisters] = useState<Set<string>>(
     () => new Set()
   );
+
+  useEffect(() => {
+    void loadStoicIdentity();
+  }, []);
 
   const updateWallet = useCallback(
     (id: WalletId, patch: Partial<WalletState>) => {
@@ -173,7 +190,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
       try {
         const StoicIdentity = await loadStoicIdentity();
-        const identity = await StoicIdentity.load(undefined, "iframe");
+        const identity = await StoicIdentity.load(
+          STOIC_WALLET_URL,
+          STOIC_TRANSPORT
+        );
         if (identity) {
           const agent = new HttpAgent({ host: IC_HOST, identity });
           const principalText = identity.getPrincipal().toString();
@@ -246,7 +266,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
         if (id === "stoic") {
           const StoicIdentity = await loadStoicIdentity();
-          const identity = await StoicIdentity.connect();
+          const identity = await StoicIdentity.connect(
+            STOIC_WALLET_URL,
+            STOIC_TRANSPORT
+          );
           const agent = new HttpAgent({ host: IC_HOST, identity });
           const principalText = identity.getPrincipal().toString();
           const accountId = deriveAccountId(identity.getPrincipal());

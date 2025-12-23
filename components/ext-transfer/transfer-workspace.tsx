@@ -416,7 +416,7 @@ export default function TransferWorkspace() {
                               from: { address: accountId },
                               memo: [],
                               subaccount: [],
-                              amount: 1n,
+                              amount: BigInt(1),
                             };
                             const params = buildOisyTransferCallParams(
                               selectedCanister.id,
@@ -451,7 +451,7 @@ export default function TransferWorkspace() {
                                   from: { address: accountId },
                                   memo: [],
                                   subaccount: [],
-                                  amount: 1n,
+                                  amount: BigInt(1),
                                 }
                               );
                             }
@@ -477,7 +477,7 @@ export default function TransferWorkspace() {
                               from: { address: accountId },
                               memo: [],
                               subaccount: [],
-                              amount: 1n,
+                              amount: BigInt(1),
                             });
                           }
                           if (!activeWallet.agent) {
@@ -500,7 +500,7 @@ export default function TransferWorkspace() {
                               from: { address: accountId },
                               memo: [],
                               subaccount: [],
-                              amount: 1n,
+                              amount: BigInt(1),
                             }
                           );
                         })(),

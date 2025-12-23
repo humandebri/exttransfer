@@ -14,10 +14,16 @@ export type PlugCreateActorParams = {
   interfaceFactory: IDL.InterfaceFactory;
 };
 
+export type PlugCreateAgentParams = {
+  whitelist: string[];
+  host?: string;
+};
+
 export type PlugProvider = {
   requestConnect: (params?: PlugRequestConnectParams) => Promise<unknown>;
   isConnected: () => Promise<boolean>;
   disconnect: () => void;
+  createAgent: (params: PlugCreateAgentParams) => Promise<void>;
   createActor: <T>(params: PlugCreateActorParams) => Promise<T>;
   onExternalDisconnect: (callback: () => void) => void;
   onLockStateChange: (callback: (isLocked: boolean) => void) => void;

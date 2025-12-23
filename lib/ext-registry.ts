@@ -50,7 +50,8 @@ export async function fetchRegistry(
 }
 
 function decodeRegistry(raw: Uint8Array): unknown {
-  return IDL.decode([IDL.Vec(IDL.Tuple(IDL.Nat32, IDL.Text))], raw);
+  const buffer = Uint8Array.from(raw).buffer;
+  return IDL.decode([IDL.Vec(IDL.Tuple(IDL.Nat32, IDL.Text))], buffer);
 }
 
 function normalizeRegistryEntry(value: unknown): RegistryEntry | null {
