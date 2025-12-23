@@ -22,7 +22,32 @@ const monoFont = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "EXT Transfer Studio",
-  description: "Bulk transfer workspace for EXT NFTs.",
+  description: "Bulk transfer workspace for EXT NFTs on the Internet Computer.",
+  metadataBase: new URL("https://exttransfer.vercel.app"),
+  openGraph: {
+    type: "website",
+    url: "https://exttransfer.vercel.app",
+    title: "EXT Transfer Studio",
+    description:
+      "Bulk transfer workspace for EXT NFTs on the Internet Computer.",
+    images: [
+      {
+        url: "/og.svg",
+        alt: "EXT Transfer Studio preview",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "EXT Transfer Studio",
+    description:
+      "Bulk transfer workspace for EXT NFTs on the Internet Computer.",
+    images: ["/og.svg"],
+  },
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/apple-icon.svg",
+  },
 };
 
 export default function RootLayout({

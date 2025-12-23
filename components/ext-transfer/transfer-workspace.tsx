@@ -102,6 +102,7 @@ export default function TransferWorkspace() {
   const selectedCount = selectedIds.length;
   const allSelected = selectedCount === displayTokens.length;
   const trimmedRecipient = recipient.trim();
+  const isOisyUnsupported = activeWallet?.id === "oisy";
   const isRecipientValid = useMemo(() => {
     if (!trimmedRecipient) {
       return false;
@@ -122,7 +123,8 @@ export default function TransferWorkspace() {
     !!selectedCanister &&
     accountId !== "Not connected" &&
     walletReady &&
-    isRecipientValid;
+    isRecipientValid &&
+    !isOisyUnsupported;
 
   const connectedRecipients = useMemo(() => {
     return wallets.filter(
@@ -167,7 +169,7 @@ export default function TransferWorkspace() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-4 self-stretch min-h-0">
+    <main className="flex flex-1 flex-col gap-4 self-stretch min-h-0 max-h-[calc(100dvh-2rem)] overflow-hidden">
       <header className="flex flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-4 shadow-sm">
         <div className="flex w-full items-start gap-4">
           <div className="min-w-0 flex-1">
@@ -283,11 +285,14 @@ export default function TransferWorkspace() {
                     <p className="text-sm font-medium text-zinc-900">
                       Use session approvals for this canister (Plug/Stoic only)
                     </p>
-                    <p className="text-xs text-zinc-500">
-                      When off, each transfer asks for wallet approval. OISY always asks.
-                    </p>
                   </div>
                 </div>
+                {isOisyUnsupported ? (
+                  <p className="text-xs text-rose-500">
+                    EXT canisters do not implement ICRC-21, so OISY cannot approve
+                    this transfer.
+                  </p>
+                ) : null}
                 {connectedRecipients.length > 0 ? (
                   <div className="space-y-2">
                     <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
@@ -398,39 +403,49 @@ export default function TransferWorkspace() {
                             if (activeWallet.id === "oisy") {
                               // OISYはICRC-49経由でcanister呼び出しを行う。
                               const relyingParty = activeWallet.relyingParty;
-                            const senderPrincipal = activeWallet.principalText;
-                            if (!relyingParty || !senderPrincipal) {
-                              throw new Error("OISY wallet is not ready.");
-                            }
-                            const request: OisyTransferRequest = {
-                              to:
-                                transferMode === "principal"
-                                  ? {
-                                      principal: IcpPrincipal.fromText(
-                                        trimmedRecipient
-                                      ),
-                                    }
-                                  : { address: trimmedRecipient },
-                              token: token.tokenIdentifier,
-                              notify: false,
-                              from: { address: accountId },
-                              memo: [],
-                              subaccount: [],
-                              amount: BigInt(1),
-                            };
-                            const params = buildOisyTransferCallParams(
-                              selectedCanister.id,
-                              senderPrincipal,
-                              request
-                            );
-                            const result = await relyingParty.callCanister({
-                              params,
-                            });
-                            return decodeOisyTransferResponse({
-                              params,
-                              result,
-                              host: IC_HOST,
-                            });
+                              const senderPrincipal = activeWallet.principalText;
+                              if (!relyingParty || !senderPrincipal) {
+                                throw new Error("OISY wallet is not ready.");
+                              }
+                              const request: OisyTransferRequest = {
+                                to:
+                                  transferMode === "principal"
+                                    ? {
+                                        principal: IcpPrincipal.fromText(
+                                          trimmedRecipient
+                                        ),
+                                      }
+                                    : { address: trimmedRecipient },
+                                token: token.tokenIdentifier,
+                                notify: false,
+                                from: { address: accountId },
+                                memo: [],
+                                subaccount: [],
+                                amount: BigInt(1),
+                              };
+                              const params = buildOisyTransferCallParams(
+                                selectedCanister.id,
+                                senderPrincipal,
+                                request
+                              );
+                              console.info("[exttransfer] oisy transfer request", {
+                                canisterId: selectedCanister.id,
+                                token: token.tokenIdentifier,
+                                recipient: trimmedRecipient,
+                                mode: transferMode,
+                              });
+                              const result = await relyingParty.callCanister({
+                                params,
+                              });
+                              console.info("[exttransfer] oisy transfer result", {
+                                status: result.status,
+                                error: result.error,
+                              });
+                              return decodeOisyTransferResponse({
+                                params,
+                                result,
+                                host: IC_HOST,
+                              });
                           }
                           if (activeWallet.id === "plug") {
                             if (useSessionApprovals && activeWallet.agent) {

@@ -17,11 +17,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import { type CanisterEntry } from "@/components/ext-transfer/transfer-data";
 import { useCanisters } from "@/components/ext-transfer/canister-store";
 import WalletConnectPanel from "@/components/ext-transfer/wallet-connect-panel";
 
-export default function TransferSidebar() {
+type TransferSidebarProps = {
+  variant?: "desktop" | "mobile";
+  className?: string;
+};
+
+export default function TransferSidebar({
+  variant = "desktop",
+  className,
+}: TransferSidebarProps) {
   const {
     canisters,
     addCanister,
@@ -79,8 +88,16 @@ export default function TransferSidebar() {
     setEditOpen(false);
   };
 
+  const visibilityClasses = variant === "mobile" ? "flex" : "hidden lg:flex";
+
   return (
-    <aside className="hidden w-78 flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm lg:flex self-stretch">
+    <aside
+      className={cn(
+        "w-78 flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm self-stretch max-h-[calc(100dvh-2rem)] overflow-hidden",
+        visibilityClasses,
+        className
+      )}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">EXT</p>
@@ -95,7 +112,7 @@ export default function TransferSidebar() {
 
       <Separator />
 
-      <div className="flex flex-col gap-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
         <div className="flex items-center justify-between">
           <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
             Canisters
@@ -147,7 +164,7 @@ export default function TransferSidebar() {
             </DialogContent>
           </Dialog>
         </div>
-        <ScrollArea className="max-h-[calc(100vh-240px)] pr-2">
+        <ScrollArea className="min-h-0 flex-1 pr-2">
           <div className="flex flex-col gap-2">
             {canisters.map((canister) => (
               <div
@@ -192,7 +209,8 @@ export default function TransferSidebar() {
           </div>
         </ScrollArea>
 
-        <div className="rounded-2xl border border-zinc-200/60 bg-white px-3 py-3">
+        <Separator />
+        <div>
           <WalletConnectPanel />
         </div>
       </div>

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { HttpAgent } from "@dfinity/agent";
 
 import { useCanisters } from "@/components/ext-transfer/canister-store";
+import { PINEAPPLE_PUNKS_CANISTER_ID } from "@/components/ext-transfer/transfer-data";
 import { IC_HOST } from "@/lib/runtime-config";
 import { tokenIdentifierFromIndex } from "@/lib/ext-token-id";
 import { fetchOwnedTokenIndexes } from "@/lib/ext-owned-tokens";
@@ -84,6 +85,14 @@ export function useExtTokens() {
             tokenIndex
           );
           const tokenText = tokenIdentifier;
+          const imageUrl =
+            selectedCanister.id === PINEAPPLE_PUNKS_CANISTER_ID
+              ? `https://${selectedCanister.id}.raw.icp0.io/?tokenid=${encodeURIComponent(
+                  tokenText
+                )}&type=thumbnail`
+              : `https://${selectedCanister.id}.raw.icp0.io/?cc=0&type=thumbnail&tokenid=${encodeURIComponent(
+                  tokenText
+                )}`;
           return {
             id: `${selectedCanister.id}-${tokenIndex}-${entryIndex}`,
             label: `#${tokenIndex + 1}`,
@@ -91,9 +100,7 @@ export function useExtTokens() {
             tokenId: `#${tokenIndex + 1}`,
             tone: TOKEN_TONES[entryIndex % TOKEN_TONES.length],
             rarity: RARITY_LABELS[entryIndex % RARITY_LABELS.length],
-            imageUrl: `https://${selectedCanister.id}.raw.icp0.io/?cc=0&type=thumbnail&tokenid=${encodeURIComponent(
-              tokenText
-            )}`,
+            imageUrl,
             tokenIdentifier: tokenText,
           };
         });

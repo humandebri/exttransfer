@@ -18,7 +18,7 @@ export default function TransferTokenGrid({
   onToggle,
 }: TokenGridProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <div className="grid grid-cols-3 gap-2 md:gap-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9">
       {tokens.map((item, index) => (
         <TokenCard
           key={item.id}
@@ -49,13 +49,13 @@ function TokenCard({ item, index, isSelected, onToggle }: TokenCardProps) {
       }`}
     >
       <CardContent
-        className="relative flex flex-col gap-3 p-3 opacity-0 animate-[fade-in_0.6s_ease-out_forwards]"
+        className="relative flex flex-col gap-1 p-2 opacity-0 animate-[fade-in_0.6s_ease-out_forwards]"
         style={{ animationDelay: `${0.1 + index * 0.05}s` }}
       >
         <div
           role="button"
           tabIndex={0}
-          className={`relative aspect-square overflow-hidden rounded-2xl bg-gradient-to-br ${item.tone}`}
+          className="relative aspect-square overflow-hidden rounded-2xl bg-transparent"
           onClick={() => onToggle(item.id, !isSelected)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
