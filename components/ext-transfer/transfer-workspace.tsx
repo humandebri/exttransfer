@@ -371,13 +371,11 @@ export default function TransferWorkspace() {
                         status: "pending",
                       }))
                     );
+                    if (activeWallet?.id === "plug") {
+                      await ensureActiveCanisterAccess(selectedCanister.id);
+                    }
                     for (const token of selectedTokens) {
                       try {
-                        if (activeWallet?.id === "plug") {
-                          await ensureActiveCanisterAccess(
-                            selectedCanister.id
-                          );
-                        }
                         const response = await withTimeout(
                           (async () => {
                             if (activeWallet.id === "oisy") {
