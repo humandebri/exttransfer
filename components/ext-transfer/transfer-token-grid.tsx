@@ -5,16 +5,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DisplayToken } from "@/components/ext-transfer/use-ext-tokens";
+import type { ListingDisplay } from "@/components/ext-transfer/use-ext-listings";
 
 type TokenGridProps = {
   tokens: DisplayToken[];
   selectedIds: string[];
+  listingsByIndex: Record<number, ListingDisplay>;
+  listingsLoading: boolean;
+  listingsError: string | null;
   onToggle: (id: string, checked: boolean | "indeterminate") => void;
 };
 
 export default function TransferTokenGrid({
   tokens,
   selectedIds,
+  listingsByIndex,
+  listingsLoading,
+  listingsError,
   onToggle,
 }: TokenGridProps) {
   return (
@@ -25,6 +32,9 @@ export default function TransferTokenGrid({
           item={item}
           index={index}
           isSelected={selectedIds.includes(item.id)}
+          listing={listingsByIndex[item.tokenIndex]}
+          listingsLoading={listingsLoading}
+          listingsError={listingsError}
           onToggle={onToggle}
         />
       ))}
@@ -36,10 +46,23 @@ type TokenCardProps = {
   item: DisplayToken;
   index: number;
   isSelected: boolean;
+  listing?: ListingDisplay;
+  listingsLoading: boolean;
+  listingsError: string | null;
   onToggle: (id: string, checked: boolean | "indeterminate") => void;
 };
 
-function TokenCard({ item, index, isSelected, onToggle }: TokenCardProps) {
+function TokenCard({
+  item,
+  index,
+  isSelected,
+  listing,
+  listingsLoading,
+  listingsError,
+  onToggle,
+}: TokenCardProps) {
+  const listingLink =
+    listing?.sellerFrontend && normalizeListingLink(listing.sellerFrontend);
   return (
     <Card
       className={`group overflow-hidden rounded-3xl border bg-white transition ${
@@ -79,10 +102,38 @@ function TokenCard({ item, index, isSelected, onToggle }: TokenCardProps) {
             />
           </div>
         </div>
-        <div className="space-y-1">
+        <div >
           <p className="text-lg font-semibold text-zinc-900">{item.label}</p>
+          {listingsLoading ? (
+            <p className="text-xs text-zinc-400">Loading listings...</p>
+          ) : listingsError ? (
+            <p className="text-xs text-zinc-400">Listings unavailable</p>
+          ) : listing ? (
+            <div className="space-y-1 text-xs">
+              <p className="text-emerald-700">Listed: {listing.priceLabel}</p>
+              {listingLink ? (
+                <a
+                  href={listingLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-zinc-500 underline decoration-dotted underline-offset-4"
+                >
+                  Direct link to listings
+                </a>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-400">Not listed</p>
+          )}
         </div>
       </CardContent>
     </Card>
   );
+}
+
+function normalizeListingLink(value: string): string {
+  if (value.startsWith("https://") || value.startsWith("http://")) {
+    return value;
+  }
+  return `https://${value}`;
 }

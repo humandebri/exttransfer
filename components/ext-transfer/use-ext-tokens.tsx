@@ -16,6 +16,7 @@ export type DisplayToken = {
   label: string;
   collection: string;
   tokenId: string;
+  tokenIndex: number;
   tone: string;
   rarity: string;
   imageUrl?: string;
@@ -98,6 +99,7 @@ export function useExtTokens() {
             label: `#${tokenIndex + 1}`,
             collection: selectedCanister.name,
             tokenId: `#${tokenIndex + 1}`,
+            tokenIndex,
             tone: TOKEN_TONES[entryIndex % TOKEN_TONES.length],
             rarity: RARITY_LABELS[entryIndex % RARITY_LABELS.length],
             imageUrl,

@@ -26,6 +26,7 @@ import TransferTokenSkeleton from "@/components/ext-transfer/transfer-token-skel
 import { useWalletMeta } from "@/components/ext-transfer/use-wallet-meta";
 import { useCanisters } from "@/components/ext-transfer/canister-store";
 import { useExtTokens } from "@/components/ext-transfer/use-ext-tokens";
+import { useExtListings } from "@/components/ext-transfer/use-ext-listings";
 import { useWallets } from "@/components/ext-transfer/wallet-context";
 import TransferProgressModal, {
   type TransferLogEntry,
@@ -84,6 +85,8 @@ export default function TransferWorkspace() {
   const { activeWallet, ensureActiveCanisterAccess, wallets } = useWallets();
   const { selectedCanister } = useCanisters();
   const { tokens, loading, refresh } = useExtTokens();
+  const { listingsByIndex, loading: listingsLoading, error: listingsError } =
+    useExtListings();
   const walletReady =
     !!activeWallet &&
     activeWallet.status === "connected" &&
@@ -653,6 +656,9 @@ export default function TransferWorkspace() {
             <TransferTokenGrid
               tokens={displayTokens}
               selectedIds={selectedIds}
+              listingsByIndex={listingsByIndex}
+              listingsLoading={listingsLoading}
+              listingsError={listingsError}
               onToggle={handleToggleItem}
             />
           )}
