@@ -68,7 +68,7 @@ type WalletContextValue = {
   connectWallet: (id: WalletId, options?: ConnectOptions) => Promise<void>;
   disconnectWallet: (id: WalletId) => Promise<void>;
   setActiveWalletId: (id: WalletId) => void;
-  ensureActiveCanisterAccess: (canisterId: string) => Promise<void>;
+  ensureActiveCanisterAccess: (canisterId: string, useSession: boolean) => Promise<void>;
 };
 
 const walletDefaults: WalletState[] = [
@@ -140,8 +140,8 @@ function safeDeriveAccountId(principalText: string | null): string | null {
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [wallets, setWallets] = useState<WalletState[]>(walletDefaults);
   const [activeWalletId, setActiveWalletId] = useState<WalletId | null>(null);
-  const [plugApprovedCanisterId, setPlugApprovedCanisterId] = useState<string | null>(
-    null
+  const [plugApprovedCanisters, setPlugApprovedCanisters] = useState<Set<string>>(
+    () => new Set()
   );
 
   useEffect(() => {
@@ -251,7 +251,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               relyingParty: null,
               error: null,
             });
-            setPlugApprovedCanisterId(null);
             setActiveWalletId((prev) => (prev === "plug" ? null : prev));
           });
           updateWallet("plug", {
@@ -261,7 +260,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             agent,
             relyingParty: null,
           });
-          setPlugApprovedCanisterId(whitelist[0] ?? null);
           setActiveWalletId("plug");
           return;
         }
@@ -342,7 +340,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         if (plug) {
           plug.disconnect();
         }
-        setPlugApprovedCanisterId(null);
       }
       if (id === "stoic") {
         const StoicIdentity = await loadStoicIdentity();
@@ -368,7 +365,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   );
 
   const ensureActiveCanisterAccess = useCallback(
-    async (canisterId: string) => {
+    async (canisterId: string, useSession: boolean) => {
       if (activeWalletId !== "plug") {
         return;
       }
@@ -376,26 +373,31 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (!plug) {
         return;
       }
-      if (plugApprovedCanisterId === canisterId) {
-        const connected = await plug.isConnected();
-        if (connected) {
-          console.info("[exttransfer] plug canister already connected", {
-            canisterId,
-          });
-          return;
+      const approved = plugApprovedCanisters.has(canisterId);
+      if (useSession && approved) {
+        if (!plug.agent) {
+          await plug.createAgent({ whitelist: [canisterId], host: PLUG_HOST });
+          updateWallet("plug", { agent: plug.agent ?? null });
         }
+        return;
       }
       // PlugはCanister切替ごとに承認が必要になるため、都度whitelistを更新する。
-      console.info("[exttransfer] plug requestConnect", { canisterId });
       await plug.requestConnect({
         whitelist: [canisterId],
         host: PLUG_HOST,
         timeout: 50000,
       });
-      console.info("[exttransfer] plug requestConnect ok", { canisterId });
-      setPlugApprovedCanisterId(canisterId);
+      if (useSession) {
+        await plug.createAgent({ whitelist: [canisterId], host: PLUG_HOST });
+        updateWallet("plug", { agent: plug.agent ?? null });
+        setPlugApprovedCanisters((prev) => {
+          const next = new Set(prev);
+          next.add(canisterId);
+          return next;
+        });
+      }
     },
-    [activeWalletId, plugApprovedCanisterId]
+    [activeWalletId, plugApprovedCanisters, updateWallet]
   );
 
   const activeWallet = useMemo(

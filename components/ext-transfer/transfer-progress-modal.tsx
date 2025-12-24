@@ -37,7 +37,7 @@ export default function TransferProgressModal({
         <DialogHeader>
           <DialogTitle>Transfer status</DialogTitle>
           <DialogDescription>
-            Plug uses batch approval when available; transfers run in parallel.
+            Transfers are processed sequentially. Please wait until completion.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-72 space-y-2 overflow-auto rounded-2xl border border-zinc-200 bg-white p-3 text-sm text-zinc-700">

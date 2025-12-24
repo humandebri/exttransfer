@@ -1,6 +1,6 @@
 "use client";
 
-// components/ext-transfer/transfer-workspace.tsx: 選択と送信の主要UI。Plugはバッチ承認、他は並列化する。
+// components/ext-transfer/transfer-workspace.tsx: 選択と送信の主要UI。アクティブなウォレットで順次転送する。
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCcw, Send } from "lucide-react";
 import { Principal } from "@dfinity/principal";
@@ -81,6 +81,7 @@ export default function TransferWorkspace() {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [useSessionApprovals, setUseSessionApprovals] = useState(false);
   const { accountId } = useWalletMeta();
   const { activeWallet, ensureActiveCanisterAccess, wallets } = useWallets();
   const { selectedCanister } = useCanisters();
@@ -120,6 +121,7 @@ export default function TransferWorkspace() {
     return isValidAccountId(trimmedRecipient);
   }, [trimmedRecipient, transferMode]);
   const canSubmitTransfer =
+    !transferRunning &&
     selectedCount > 0 &&
     !!selectedCanister &&
     accountId !== "Not connected" &&
@@ -276,6 +278,18 @@ export default function TransferWorkspace() {
                     </p>
                   ) : null}
                 </div>
+                <div className="flex items-start gap-2 rounded-2xl border border-zinc-200/70 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                  <Checkbox
+                    checked={useSessionApprovals}
+                    onCheckedChange={(value) => setUseSessionApprovals(value === true)}
+                    aria-label="Use session approvals"
+                  />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-zinc-900">
+                      Use session approvals for this canister (Plug/Stoic only)
+                    </p>
+                  </div>
+                </div>
                 {isOisyUnsupported ? (
                   <p className="text-xs text-rose-500">
                     EXT canisters do not implement ICRC-21, so OISY cannot approve
@@ -306,7 +320,7 @@ export default function TransferWorkspace() {
                   </div>
                 ) : null}
                 <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-                  {selectedCount} NFTs will be queued for signing, then sent in parallel.
+                  {selectedCount} NFTs will be transferred sequentially.
                 </div>
               </div>
               {transferLog.length > 0 ? (
@@ -363,6 +377,12 @@ export default function TransferWorkspace() {
                     setTransferDialogOpen(false);
                     setProgressDialogOpen(true);
                     setShowToast(false);
+                    if (useSessionApprovals) {
+                      await ensureActiveCanisterAccess(
+                        selectedCanister.id,
+                        true
+                      );
+                    }
                     setTransferLog(
                       selectedTokens.map((token) => ({
                         tokenId: token.id,
@@ -370,39 +390,17 @@ export default function TransferWorkspace() {
                         status: "pending",
                       }))
                     );
-                    const updateTransferLog = (
-                      tokenId: string,
-                      status: TransferLogEntry["status"],
-                      detail?: string
-                    ) => {
-                      setTransferLog((prev) =>
-                        prev.map((entry) =>
-                          entry.tokenId === tokenId
-                            ? { ...entry, status, detail }
-                            : entry
-                        )
-                      );
-                    };
-                    const buildTransferRequest = (
-                      tokenIdentifier: string
-                    ): OisyTransferRequest => ({
-                      to:
-                        transferMode === "principal"
-                          ? {
-                              principal: IcpPrincipal.fromText(trimmedRecipient),
-                            }
-                          : { address: trimmedRecipient },
-                      token: tokenIdentifier,
-                      notify: false,
-                      from: { address: accountId },
-                      memo: [],
-                      subaccount: [],
-                      amount: BigInt(1),
-                    });
-                    const runTransfer = async (
-                      token: (typeof selectedTokens)[number]
-                    ) => {
+                    for (const token of selectedTokens) {
                       try {
+                        if (
+                          !useSessionApprovals &&
+                          activeWallet?.id === "plug"
+                        ) {
+                          await ensureActiveCanisterAccess(
+                            selectedCanister.id,
+                            false
+                          );
+                        }
                         const response = await withTimeout(
                           (async () => {
                             if (activeWallet.id === "oisy") {
@@ -412,9 +410,22 @@ export default function TransferWorkspace() {
                               if (!relyingParty || !senderPrincipal) {
                                 throw new Error("OISY wallet is not ready.");
                               }
-                              const request = buildTransferRequest(
-                                token.tokenIdentifier
-                              );
+                              const request: OisyTransferRequest = {
+                                to:
+                                  transferMode === "principal"
+                                    ? {
+                                        principal: IcpPrincipal.fromText(
+                                          trimmedRecipient
+                                        ),
+                                      }
+                                    : { address: trimmedRecipient },
+                                token: token.tokenIdentifier,
+                                notify: false,
+                                from: { address: accountId },
+                                memo: [],
+                                subaccount: [],
+                                amount: BigInt(1),
+                              };
                               const params = buildOisyTransferCallParams(
                                 selectedCanister.id,
                                 senderPrincipal,
@@ -437,197 +448,124 @@ export default function TransferWorkspace() {
                                 result,
                                 host: IC_HOST,
                               });
+                          }
+                          if (activeWallet.id === "plug") {
+                            if (useSessionApprovals && activeWallet.agent) {
+                              return transferExtToken(
+                                activeWallet.agent,
+                                selectedCanister.id,
+                                {
+                                  to:
+                                    transferMode === "principal"
+                                      ? {
+                                          principal: Principal.fromText(
+                                            trimmedRecipient
+                                          ),
+                                        }
+                                      : { address: trimmedRecipient },
+                                  token: token.tokenIdentifier,
+                                  notify: false,
+                                  from: { address: accountId },
+                                  memo: [],
+                                  subaccount: [],
+                                  amount: BigInt(1),
+                                }
+                              );
                             }
-                            if (activeWallet.id === "plug") {
-                              const plug = window.ic?.plug;
-                              if (!plug) {
-                                throw new Error("Plug extension not detected.");
-                              }
-                              const actor = await plug.createActor<TransferActor>({
-                                canisterId: selectedCanister.id,
-                                interfaceFactory: transferIdlFactory,
-                              });
-                              return actor.transfer({
-                                to:
-                                  transferMode === "principal"
-                                    ? {
-                                        principal: Principal.fromText(
-                                          trimmedRecipient
-                                        ),
-                                      }
-                                    : { address: trimmedRecipient },
-                                token: token.tokenIdentifier,
-                                notify: false,
-                                from: { address: accountId },
-                                memo: [],
-                                subaccount: [],
-                                amount: BigInt(1),
-                              });
+                            const plug = window.ic?.plug;
+                            if (!plug) {
+                              throw new Error("Plug extension not detected.");
                             }
-                            if (!activeWallet.agent) {
-                              throw new Error("Active wallet agent missing.");
+                            const actor = await plug.createActor<TransferActor>({
+                              canisterId: selectedCanister.id,
+                              interfaceFactory: transferIdlFactory,
+                            });
+                            return actor.transfer({
+                              to:
+                                transferMode === "principal"
+                                  ? {
+                                      principal: Principal.fromText(
+                                        trimmedRecipient
+                                      ),
+                                    }
+                                  : { address: trimmedRecipient },
+                              token: token.tokenIdentifier,
+                              notify: false,
+                              from: { address: accountId },
+                              memo: [],
+                              subaccount: [],
+                              amount: BigInt(1),
+                            });
+                          }
+                          if (!activeWallet.agent) {
+                            throw new Error("Active wallet agent missing.");
+                          }
+                          return transferExtToken(
+                            activeWallet.agent,
+                            selectedCanister.id,
+                            {
+                              to:
+                                transferMode === "principal"
+                                  ? {
+                                      principal: Principal.fromText(
+                                        trimmedRecipient
+                                      ),
+                                    }
+                                  : { address: trimmedRecipient },
+                              token: token.tokenIdentifier,
+                              notify: false,
+                              from: { address: accountId },
+                              memo: [],
+                              subaccount: [],
+                              amount: BigInt(1),
                             }
-                            return transferExtToken(
-                              activeWallet.agent,
-                              selectedCanister.id,
-                              {
-                                to:
-                                  transferMode === "principal"
-                                    ? {
-                                        principal: Principal.fromText(
-                                          trimmedRecipient
-                                        ),
-                                      }
-                                    : { address: trimmedRecipient },
-                                token: token.tokenIdentifier,
-                                notify: false,
-                                from: { address: accountId },
-                                memo: [],
-                                subaccount: [],
-                                amount: BigInt(1),
-                              }
-                            );
-                          })(),
+                          );
+                        })(),
                           TRANSFER_TIMEOUT_MS
                         );
                         if ("err" in response) {
-                          updateTransferLog(
-                            token.id,
-                            "error",
-                            formatTransferError(response.err)
-                          );
-                          return;
-                        }
-                        updateTransferLog(token.id, "success");
-                      } catch (error) {
-                        updateTransferLog(
-                          token.id,
-                          "error",
-                          error instanceof Error ? error.message : "Unknown error"
-                        );
-                      }
-                    };
-                    if (activeWallet.id === "plug") {
-                      console.info("[exttransfer] plug batch start", {
-                        canisterId: selectedCanister.id,
-                        tokens: selectedTokens.length,
-                        recipient: trimmedRecipient,
-                        mode: transferMode,
-                      });
-                      try {
-                        await ensureActiveCanisterAccess(selectedCanister.id);
-                      } catch (error) {
-                        console.warn(
-                          "[exttransfer] plug requestConnect failed, continuing",
-                          error
-                        );
-                      }
-                      const plug = window.ic?.plug;
-                      if (!plug) {
-                        throw new Error("Plug extension not detected.");
-                      }
-                      if (typeof plug.batchTransactions !== "function") {
-                        console.warn("[exttransfer] plug batch unavailable");
-                        setTransferLog((prev) =>
-                          prev.map((entry) => ({
-                            ...entry,
-                            status: "error",
-                            detail: "Batch transactions not supported in Plug.",
-                          }))
-                        );
-                        setTransferRunning(false);
-                        setShowToast(true);
-                        return;
-                      }
-                      // Plugのbatchは途中失敗で停止するため、未完了分を補足でエラー表示する。
-                      const pendingIds = new Set(
-                        selectedTokens.map((token) => token.id)
-                      );
-                      const transactions = selectedTokens.map((token) => ({
-                        idl: transferIdlFactory,
-                        canisterId: selectedCanister.id,
-                        methodName: "transfer",
-                        args: [
-                          {
-                            to:
-                              transferMode === "principal"
+                          setTransferLog((prev) =>
+                            prev.map((entry) =>
+                              entry.tokenId === token.id
                                 ? {
-                                    principal: Principal.fromText(
-                                      trimmedRecipient
-                                    ),
+                                    ...entry,
+                                    status: "error",
+                                    detail: formatTransferError(response.err),
                                   }
-                                : { address: trimmedRecipient },
-                            token: token.tokenIdentifier,
-                            notify: false,
-                            from: { address: accountId },
-                            memo: [],
-                            subaccount: [],
-                            amount: BigInt(1),
-                          },
-                        ],
-                        onSuccess: (result: unknown) => {
-                          pendingIds.delete(token.id);
-                          if (
-                            typeof result === "object" &&
-                            result !== null &&
-                            "err" in result
-                          ) {
-                            updateTransferLog(
-                              token.id,
-                              "error",
-                              "Transfer rejected"
-                            );
-                            return;
-                          }
-                          updateTransferLog(token.id, "success");
-                        },
-                        onFail: (error: unknown) => {
-                          pendingIds.delete(token.id);
-                          updateTransferLog(
-                            token.id,
-                            "error",
-                            error instanceof Error
-                              ? error.message
-                              : "Transfer failed"
+                                : entry
+                            )
                           );
-                        },
-                      }));
-                      await withTimeout(
-                        plug.batchTransactions(transactions),
-                        TRANSFER_TIMEOUT_MS
-                      );
-                      console.info("[exttransfer] plug batch completed", {
-                        pending: pendingIds.size,
-                      });
-                      if (pendingIds.size > 0) {
-                        for (const pendingId of pendingIds) {
-                          updateTransferLog(
-                            pendingId,
-                            "error",
-                            "Batch stopped before completion"
-                          );
+                          continue;
                         }
+                        setTransferLog((prev) =>
+                          prev.map((entry) =>
+                            entry.tokenId === token.id
+                              ? { ...entry, status: "success" }
+                              : entry
+                          )
+                        );
+                      } catch (error) {
+                        setTransferLog((prev) =>
+                          prev.map((entry) =>
+                            entry.tokenId === token.id
+                              ? {
+                                  ...entry,
+                                  status: "error",
+                                  detail:
+                                    error instanceof Error
+                                      ? error.message
+                                      : "Unknown error",
+                                }
+                              : entry
+                          )
+                        );
                       }
-                    } else {
-                      console.info("[exttransfer] parallel transfers start", {
-                        wallet: activeWallet.id,
-                        canisterId: selectedCanister.id,
-                        tokens: selectedTokens.length,
-                        recipient: trimmedRecipient,
-                        mode: transferMode,
-                      });
-                      await Promise.all(
-                        selectedTokens.map((token) => runTransfer(token))
-                      );
-                      console.info("[exttransfer] parallel transfers done", {
-                        wallet: activeWallet.id,
-                      });
                     }
                     setTransferRunning(false);
                     setShowToast(true);
                   }}
                 >
-                  Confirm transfer
+                  {transferRunning ? "Transferring..." : "Confirm transfer"}
                 </Button>
               </DialogFooter>
             </DialogContent>
