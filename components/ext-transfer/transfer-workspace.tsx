@@ -167,7 +167,7 @@ export default function TransferWorkspace() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-4 self-stretch min-h-0 max-h-[calc(100dvh-2rem)] overflow-hidden">
+    <main className="flex flex-1 flex-col gap-4 self-stretch min-h-0 max-h-none overflow-visible sm:max-h-[calc(100dvh-2rem)] sm:overflow-hidden">
       <header className="flex flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-4 shadow-sm">
         <div className="flex w-full items-start gap-4">
           <div className="min-w-0 flex-1">

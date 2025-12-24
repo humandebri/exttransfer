@@ -20,6 +20,10 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { type CanisterEntry } from "@/components/ext-transfer/transfer-data";
 import { useCanisters } from "@/components/ext-transfer/canister-store";
+import {
+  type TokenCountEntry,
+  useExtTokenCounts,
+} from "@/components/ext-transfer/use-ext-token-counts";
 import WalletConnectPanel from "@/components/ext-transfer/wallet-connect-panel";
 
 type TransferSidebarProps = {
@@ -39,6 +43,7 @@ export default function TransferSidebar({
     selectedCanisterId,
     setSelectedCanisterId,
   } = useCanisters();
+  const { counts, hasAccount } = useExtTokenCounts();
   const [modalOpen, setModalOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [activeCanister, setActiveCanister] = useState<CanisterEntry | null>(null);
@@ -166,46 +171,50 @@ export default function TransferSidebar({
         </div>
         <ScrollArea className="min-h-0 flex-1 pr-2">
           <div className="flex flex-col gap-2">
-            {canisters.map((canister) => (
-              <div
-                key={canister.id}
-                className={`rounded-2xl border px-3 py-2 transition ${
-                  selectedCanisterId === canister.id
-                    ? "border-zinc-900/40 bg-zinc-50"
-                    : "border-zinc-200/60 bg-white"
-                }`}
-                onClick={() => setSelectedCanisterId(canister.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    setSelectedCanisterId(canister.id);
-                  }
-                }}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-zinc-900">
-                      {canister.name}
-                    </p>
-                    <p className="truncate text-xs text-zinc-500">
-                      {canister.id}
-                    </p>
-                    <p className="mt-1 text-xs text-emerald-600">
-                      {canister.status}
-                    </p>
+            {canisters.map((canister) => {
+              const countEntry = counts[canister.id];
+              const countLabel = getCountLabel(hasAccount, countEntry);
+              return (
+                <div
+                  key={canister.id}
+                  className={`rounded-2xl border px-3 py-2 transition ${
+                    selectedCanisterId === canister.id
+                      ? "border-zinc-900/40 bg-zinc-50"
+                      : "border-zinc-200/60 bg-white"
+                  }`}
+                  onClick={() => setSelectedCanisterId(canister.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      setSelectedCanisterId(canister.id);
+                    }
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-zinc-900">
+                        {canister.name}
+                      </p>
+                      <p className="truncate text-xs text-zinc-500">
+                        {canister.id}
+                      </p>
+                      <p className="mt-1 text-xs  text-emerald-600">
+                        {countLabel}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-zinc-500"
+                      onClick={() => handleOpenEdit(canister)}
+                    >
+                      Edit
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs text-zinc-500"
-                    onClick={() => handleOpenEdit(canister)}
-                  >
-                    Edit
-                  </Button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </ScrollArea>
 
@@ -257,4 +266,20 @@ export default function TransferSidebar({
       </Dialog>
     </aside>
   );
+}
+
+function getCountLabel(
+  hasAccount: boolean,
+  entry: TokenCountEntry | undefined
+): string {
+  if (!hasAccount) {
+    return "Connect wallet to load";
+  }
+  if (!entry || entry.status === "idle" || entry.status === "loading") {
+    return "Loading owned count...";
+  }
+  if (entry.status === "err") {
+    return "Owned: --";
+  }
+  return `Owned: ${entry.count ?? 0}`;
 }
