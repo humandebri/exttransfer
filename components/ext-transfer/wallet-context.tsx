@@ -68,7 +68,7 @@ type WalletContextValue = {
   connectWallet: (id: WalletId, options?: ConnectOptions) => Promise<void>;
   disconnectWallet: (id: WalletId) => Promise<void>;
   setActiveWalletId: (id: WalletId) => void;
-  ensureActiveCanisterAccess: (canisterId: string, useSession: boolean) => Promise<void>;
+  ensureActiveCanisterAccess: (canisterId: string) => Promise<void>;
 };
 
 const walletDefaults: WalletState[] = [
@@ -140,9 +140,6 @@ function safeDeriveAccountId(principalText: string | null): string | null {
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [wallets, setWallets] = useState<WalletState[]>(walletDefaults);
   const [activeWalletId, setActiveWalletId] = useState<WalletId | null>(null);
-  const [plugApprovedCanisters, setPlugApprovedCanisters] = useState<Set<string>>(
-    () => new Set()
-  );
 
   useEffect(() => {
     void loadStoicIdentity();
@@ -365,20 +362,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   );
 
   const ensureActiveCanisterAccess = useCallback(
-    async (canisterId: string, useSession: boolean) => {
+    async (canisterId: string) => {
       if (activeWalletId !== "plug") {
         return;
       }
       const plug = getPlugProvider();
       if (!plug) {
-        return;
-      }
-      const approved = plugApprovedCanisters.has(canisterId);
-      if (useSession && approved) {
-        if (!plug.agent) {
-          await plug.createAgent({ whitelist: [canisterId], host: PLUG_HOST });
-          updateWallet("plug", { agent: plug.agent ?? null });
-        }
         return;
       }
       // PlugはCanister切替ごとに承認が必要になるため、都度whitelistを更新する。
@@ -387,17 +376,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         host: PLUG_HOST,
         timeout: 50000,
       });
-      if (useSession) {
-        await plug.createAgent({ whitelist: [canisterId], host: PLUG_HOST });
-        updateWallet("plug", { agent: plug.agent ?? null });
-        setPlugApprovedCanisters((prev) => {
-          const next = new Set(prev);
-          next.add(canisterId);
-          return next;
-        });
-      }
     },
-    [activeWalletId, plugApprovedCanisters, updateWallet]
+    [activeWalletId]
   );
 
   const activeWallet = useMemo(

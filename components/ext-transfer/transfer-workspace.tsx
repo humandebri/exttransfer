@@ -81,7 +81,6 @@ export default function TransferWorkspace() {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [useSessionApprovals, setUseSessionApprovals] = useState(false);
   const { accountId } = useWalletMeta();
   const { activeWallet, ensureActiveCanisterAccess, wallets } = useWallets();
   const { selectedCanister } = useCanisters();
@@ -278,18 +277,6 @@ export default function TransferWorkspace() {
                     </p>
                   ) : null}
                 </div>
-                <div className="flex items-start gap-2 rounded-2xl border border-zinc-200/70 bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
-                  <Checkbox
-                    checked={useSessionApprovals}
-                    onCheckedChange={(value) => setUseSessionApprovals(value === true)}
-                    aria-label="Use session approvals"
-                  />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-zinc-900">
-                      Use session approvals for this canister (Plug/Stoic only)
-                    </p>
-                  </div>
-                </div>
                 {isOisyUnsupported ? (
                   <p className="text-xs text-rose-500">
                     EXT canisters do not implement ICRC-21, so OISY cannot approve
@@ -377,12 +364,6 @@ export default function TransferWorkspace() {
                     setTransferDialogOpen(false);
                     setProgressDialogOpen(true);
                     setShowToast(false);
-                    if (useSessionApprovals) {
-                      await ensureActiveCanisterAccess(
-                        selectedCanister.id,
-                        true
-                      );
-                    }
                     setTransferLog(
                       selectedTokens.map((token) => ({
                         tokenId: token.id,
@@ -392,13 +373,9 @@ export default function TransferWorkspace() {
                     );
                     for (const token of selectedTokens) {
                       try {
-                        if (
-                          !useSessionApprovals &&
-                          activeWallet?.id === "plug"
-                        ) {
+                        if (activeWallet?.id === "plug") {
                           await ensureActiveCanisterAccess(
-                            selectedCanister.id,
-                            false
+                            selectedCanister.id
                           );
                         }
                         const response = await withTimeout(
@@ -450,28 +427,6 @@ export default function TransferWorkspace() {
                               });
                           }
                           if (activeWallet.id === "plug") {
-                            if (useSessionApprovals && activeWallet.agent) {
-                              return transferExtToken(
-                                activeWallet.agent,
-                                selectedCanister.id,
-                                {
-                                  to:
-                                    transferMode === "principal"
-                                      ? {
-                                          principal: Principal.fromText(
-                                            trimmedRecipient
-                                          ),
-                                        }
-                                      : { address: trimmedRecipient },
-                                  token: token.tokenIdentifier,
-                                  notify: false,
-                                  from: { address: accountId },
-                                  memo: [],
-                                  subaccount: [],
-                                  amount: BigInt(1),
-                                }
-                              );
-                            }
                             const plug = window.ic?.plug;
                             if (!plug) {
                               throw new Error("Plug extension not detected.");
