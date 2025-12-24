@@ -50,22 +50,24 @@ export function useExtTokenCounts() {
             accountId
           );
           if (result.kind === "ok") {
+            const entry: TokenCountEntry = {
+              status: "ok",
+              count: result.indexes.length,
+              error: null,
+            };
             return {
               canisterId: canister.id,
-              entry: {
-                status: "ok",
-                count: result.indexes.length,
-                error: null,
-              },
+              entry,
             };
           }
+          const entry: TokenCountEntry = {
+            status: "err",
+            count: null,
+            error: result.message,
+          };
           return {
             canisterId: canister.id,
-            entry: {
-              status: "err",
-              count: null,
-              error: result.message,
-            },
+            entry,
           };
         }
       );

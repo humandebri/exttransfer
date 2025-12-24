@@ -92,7 +92,7 @@ function formatAmount(value: bigint, decimals: number): string {
   if (decimals <= 0) {
     return value.toString();
   }
-  const base = 10n ** BigInt(decimals);
+  const base = BigInt(10) ** BigInt(decimals);
   const integer = value / base;
   const fraction = value % base;
   const padded = fraction.toString().padStart(decimals, "0");

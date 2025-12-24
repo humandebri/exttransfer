@@ -39,10 +39,7 @@ export async function fetchListings(
     return { kind: "err", message: "Invalid response" };
   }
 
-  const buffer = bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength
-  );
+  const buffer = sliceToArrayBuffer(bytes);
 
   const listingData = IDL.Record({
     sellerFrontend: IDL.Opt(IDL.Text),
@@ -155,6 +152,13 @@ function toUint8Array(value: unknown): Uint8Array | null {
   return null;
 }
 
+function sliceToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  // SharedArrayBufferを確実にArrayBufferへ変換してIDL.decodeへ渡す。
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
 function unwrapOptText(value: unknown): string | null {
   if (Array.isArray(value) && value.length === 1 && typeof value[0] === "string") {
     return value[0];
@@ -191,8 +195,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function decodeListings(
   buffer: ArrayBuffer,
-  tupleShape: IDL.TupleClass,
-  recordShape: IDL.RecordClass
+  tupleShape: IDL.Type,
+  recordShape: IDL.Type
 ): unknown {
   try {
     return IDL.decode([IDL.Vec(tupleShape)], buffer);
