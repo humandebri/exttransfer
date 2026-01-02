@@ -29,6 +29,12 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Wallets
+
+- Plug, Stoic, and OISY are supported alongside AstroX ME (Connect2IC).
+- AstroX ME uses a dynamic whitelist. If you add or remove canisters, reconnect AstroX ME.
+- Connect2IC is pinned to `0.2.0-beta.24` to avoid breaking changes.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
