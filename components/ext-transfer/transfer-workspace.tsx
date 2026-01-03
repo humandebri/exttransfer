@@ -3,6 +3,7 @@
 // components/ext-transfer/transfer-workspace.tsx: 選択と送信の主要UI。アクティブなウォレットで順次転送する。
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCcw, Send } from "lucide-react";
+import { Actor } from "@dfinity/agent";
 import { Principal } from "@dfinity/principal";
 import { Principal as IcpPrincipal } from "@icp-sdk/core/principal";
 
@@ -94,6 +95,8 @@ export default function TransferWorkspace() {
       ? !!activeWallet.relyingParty
       : activeWallet.id === "plug"
         ? true
+        : activeWallet.id === "astrox"
+          ? !!activeWallet.connector
         : !!activeWallet.agent);
   const shortAccountId =
     accountId === "Not connected"
@@ -423,16 +426,53 @@ export default function TransferWorkspace() {
                                 result,
                                 host: IC_HOST,
                               });
+                            }
+                          if (activeWallet.id === "astrox") {
+                            const connector = activeWallet.connector;
+                            if (!connector) {
+                              throw new Error("AstroX provider not ready.");
+                            }
+                            const actorResult =
+                              await connector.createActor<TransferActor>(
+                                selectedCanister.id,
+                                transferIdlFactory
+                              );
+                            if (actorResult.isErr()) {
+                              throw new Error("AstroX actor creation failed.");
+                            }
+                            return actorResult.value.transfer({
+                              to:
+                                transferMode === "principal"
+                                  ? {
+                                      principal: Principal.fromText(
+                                        trimmedRecipient
+                                      ),
+                                    }
+                                  : { address: trimmedRecipient },
+                              token: token.tokenIdentifier,
+                              notify: false,
+                              from: { address: accountId },
+                              memo: [],
+                              subaccount: [],
+                              amount: BigInt(1),
+                            });
                           }
                           if (activeWallet.id === "plug") {
                             const plug = window.ic?.plug;
                             if (!plug) {
                               throw new Error("Plug extension not detected.");
                             }
-                            const actor = await plug.createActor<TransferActor>({
-                              canisterId: selectedCanister.id,
-                              interfaceFactory: transferIdlFactory,
-                            });
+                            const plugAgent = plug.agent ?? null;
+                            if (!plugAgent) {
+                              throw new Error("Plug agent is not available.");
+                            }
+                            const actor = await Actor.createActor<TransferActor>(
+                              transferIdlFactory,
+                              {
+                                agent: plugAgent,
+                                canisterId: selectedCanister.id,
+                              }
+                            );
                             return actor.transfer({
                               to:
                                 transferMode === "principal"

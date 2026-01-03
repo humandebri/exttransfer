@@ -27,12 +27,14 @@ export async function fetchTokensExt(
     return { kind: "unknown", reason: "Invalid response" };
   }
 
-  const tokens = decodeTokenIdentifiers(raw);
+  const bytes = new Uint8Array(raw);
+
+  const tokens = decodeTokenIdentifiers(bytes);
   if (tokens) {
     return { kind: "tokenIdentifiers", tokens };
   }
 
-  const indexes = decodeTokenIndexes(raw);
+  const indexes = decodeTokenIndexes(bytes);
   if (indexes) {
     return { kind: "indexes", indexes };
   }
@@ -40,8 +42,8 @@ export async function fetchTokensExt(
   return { kind: "unknown", reason: "Unsupported tokens_ext response" };
 }
 
-function decodeTokenIdentifiers(buffer: ArrayBuffer): string[] | null {
-  const decoded = IDL.decode([IDL.Vec(IDL.Text)], buffer);
+function decodeTokenIdentifiers(bytes: Uint8Array): string[] | null {
+  const decoded = IDL.decode([IDL.Vec(IDL.Text)], bytes);
   if (!Array.isArray(decoded) || decoded.length === 0) {
     return null;
   }
@@ -49,8 +51,8 @@ function decodeTokenIdentifiers(buffer: ArrayBuffer): string[] | null {
   return isStringArray(value) ? value : null;
 }
 
-function decodeTokenIndexes(buffer: ArrayBuffer): bigint[] | null {
-  const decoded = IDL.decode([IDL.Vec(IDL.Nat32)], buffer);
+function decodeTokenIndexes(bytes: Uint8Array): bigint[] | null {
+  const decoded = IDL.decode([IDL.Vec(IDL.Nat32)], bytes);
   if (!Array.isArray(decoded) || decoded.length === 0) {
     return null;
   }

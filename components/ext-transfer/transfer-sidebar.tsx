@@ -94,11 +94,13 @@ export default function TransferSidebar({
   };
 
   const visibilityClasses = variant === "mobile" ? "flex" : "hidden lg:flex";
+  const overflowClasses = variant === "mobile" ? "overflow-y-auto" : "overflow-hidden";
 
   return (
     <aside
       className={cn(
-        "w-78 flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm self-stretch max-h-[calc(100dvh-2rem)] overflow-hidden",
+        "w-78 flex-col gap-4 rounded-3xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm self-stretch max-h-[calc(100dvh-2rem)]",
+        overflowClasses,
         visibilityClasses,
         className
       )}

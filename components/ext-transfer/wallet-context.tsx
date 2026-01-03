@@ -2,12 +2,21 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { HttpAgent } from "@dfinity/agent";
 import { Principal } from "@dfinity/principal";
 import type { Agent } from "@dfinity/agent";
 
 import { deriveAccountId } from "@/lib/ic-account";
+import { AstroXMeConnector } from "@/lib/astrox-me-connector";
 import {
   IC_HOST,
   OISY_SIGNER_URL,
@@ -19,7 +28,7 @@ import { base64ToUint8Array } from "@/lib/base64";
 import { OisyRelyingParty } from "@/lib/oisy-relying-party";
 import type { PlugProvider } from "@/types/plug";
 
-export type WalletId = "plug" | "stoic" | "oisy";
+export type WalletId = "plug" | "stoic" | "oisy" | "astrox";
 export type WalletStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export type WalletState = {
@@ -30,6 +39,7 @@ export type WalletState = {
   accountId: string | null;
   agent: Agent | null;
   relyingParty: OisyRelyingParty | null;
+  connector: AstroXMeConnector | null;
   error: string | null;
 };
 
@@ -80,6 +90,7 @@ const walletDefaults: WalletState[] = [
     accountId: null,
     agent: null,
     relyingParty: null,
+    connector: null,
     error: null,
   },
   {
@@ -90,6 +101,7 @@ const walletDefaults: WalletState[] = [
     accountId: null,
     agent: null,
     relyingParty: null,
+    connector: null,
     error: null,
   },
   {
@@ -100,6 +112,18 @@ const walletDefaults: WalletState[] = [
     accountId: null,
     agent: null,
     relyingParty: null,
+    connector: null,
+    error: null,
+  },
+  {
+    id: "astrox",
+    name: "AstroX ME",
+    status: "disconnected",
+    principalText: null,
+    accountId: null,
+    agent: null,
+    relyingParty: null,
+    connector: null,
     error: null,
   },
 ];
@@ -137,9 +161,31 @@ function safeDeriveAccountId(principalText: string | null): string | null {
   }
 }
 
-export function WalletProvider({ children }: { children: ReactNode }) {
+export function WalletProvider({
+  children,
+  astroxProviderError,
+  astroxWhitelistKey,
+  astroxWhitelist,
+  astroxProviderUrl,
+  astroxCustomDomain,
+  astroxHost,
+  astroxDev,
+}: {
+  children: ReactNode;
+  astroxProviderError: string | null;
+  astroxWhitelistKey: string;
+  astroxWhitelist: string[];
+  astroxProviderUrl: string;
+  astroxCustomDomain: string;
+  astroxHost: string;
+  astroxDev: boolean;
+}) {
   const [wallets, setWallets] = useState<WalletState[]>(walletDefaults);
   const [activeWalletId, setActiveWalletId] = useState<WalletId | null>(null);
+  const [astroxError, setAstroxError] = useState<string | null>(null);
+  const [astroxConnector, setAstroxConnector] = useState<AstroXMeConnector | null>(null);
+  const [isAstroxConnected, setIsAstroxConnected] = useState(false);
+  const previousWhitelistKey = useRef(astroxWhitelistKey);
 
   useEffect(() => {
     void loadStoicIdentity();
@@ -153,6 +199,100 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+
+  useEffect(() => {
+    const connector = new AstroXMeConnector({
+      whitelist: astroxWhitelist,
+      host: astroxHost,
+      providerUrl: astroxProviderUrl,
+      customDomain: astroxCustomDomain,
+      dev: astroxDev,
+    });
+    setAstroxConnector(connector);
+  }, [astroxWhitelistKey, astroxHost, astroxProviderUrl, astroxCustomDomain, astroxDev]);
+
+  useEffect(() => {
+    if (!astroxConnector) {
+      updateWallet("astrox", {
+        status: astroxError ? "error" : "disconnected",
+        principalText: null,
+        accountId: null,
+        agent: null,
+        relyingParty: null,
+        connector: null,
+        error: astroxError,
+      });
+      return;
+    }
+    updateWallet("astrox", {
+      connector: astroxConnector,
+    });
+  }, [astroxConnector, astroxError, updateWallet]);
+
+  useEffect(() => {
+    if (!astroxConnector) {
+      return;
+    }
+    let cancelled = false;
+    const bootstrap = async () => {
+      const result = await astroxConnector.init();
+      if (cancelled) {
+        return;
+      }
+      if (result.isOk() && result.value.isConnected) {
+        const wallet = astroxConnector.getWallet();
+        const principalText = astroxConnector.principal ?? wallet?.principal ?? null;
+        const accountId = wallet?.accountId ?? safeDeriveAccountId(principalText);
+        setIsAstroxConnected(true);
+        updateWallet("astrox", {
+          status: "connected",
+          principalText,
+          accountId,
+          agent: null,
+          relyingParty: null,
+          connector: astroxConnector,
+          error: null,
+        });
+        setActiveWalletId((prev) => prev ?? "astrox");
+        return;
+      }
+      setIsAstroxConnected(false);
+      updateWallet("astrox", {
+        status: astroxError ? "error" : "disconnected",
+        principalText: null,
+        accountId: null,
+        agent: null,
+        relyingParty: null,
+        connector: astroxConnector,
+        error: astroxError,
+      });
+    };
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [astroxConnector, astroxError, setActiveWalletId, updateWallet]);
+
+  // whitelist変更時はAstroXの権限を更新するため再接続を促す。
+  useEffect(() => {
+    if (previousWhitelistKey.current === astroxWhitelistKey) {
+      return;
+    }
+    previousWhitelistKey.current = astroxWhitelistKey;
+    if (!isAstroxConnected) {
+      return;
+    }
+    setAstroxError("Canister list changed. Reconnect AstroX to update access.");
+    void astroxConnector?.disconnect();
+    setIsAstroxConnected(false);
+  }, [astroxConnector, astroxWhitelistKey, isAstroxConnected]);
+
+  useEffect(() => {
+    if (!astroxProviderError) {
+      return;
+    }
+    setAstroxError(astroxProviderError);
+  }, [astroxProviderError]);
 
   useEffect(() => {
     const restoreSessions = async () => {
@@ -177,12 +317,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               accountId,
               agent,
               relyingParty: null,
+              connector: null,
               error: null,
             });
             setActiveWalletId((prev) => prev ?? "plug");
           }
         } catch {
-          updateWallet("plug", { status: "disconnected" });
+          updateWallet("plug", {
+            status: "disconnected",
+            principalText: null,
+            accountId: null,
+            agent: null,
+            relyingParty: null,
+            connector: null,
+            error: null,
+          });
         }
       }
       try {
@@ -201,12 +350,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             accountId,
             agent,
             relyingParty: null,
+            connector: null,
             error: null,
           });
           setActiveWalletId((prev) => prev ?? "stoic");
         }
       } catch {
-        updateWallet("stoic", { status: "disconnected" });
+        updateWallet("stoic", {
+          status: "disconnected",
+          principalText: null,
+          accountId: null,
+          agent: null,
+          relyingParty: null,
+          connector: null,
+          error: null,
+        });
       }
     };
     void restoreSessions();
@@ -246,6 +404,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               accountId: null,
               agent: null,
               relyingParty: null,
+              connector: null,
               error: null,
             });
             setActiveWalletId((prev) => (prev === "plug" ? null : prev));
@@ -256,6 +415,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             accountId,
             agent,
             relyingParty: null,
+            connector: null,
           });
           setActiveWalletId("plug");
           return;
@@ -276,8 +436,77 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             accountId,
             agent,
             relyingParty: null,
+            connector: null,
           });
           setActiveWalletId("stoic");
+          return;
+        }
+
+        if (id === "astrox") {
+          if (!astroxConnector) {
+            const message = "AstroX connector is not ready.";
+            setAstroxError(message);
+            updateWallet("astrox", {
+              status: "error",
+              error: message,
+              principalText: null,
+              accountId: null,
+              agent: null,
+              relyingParty: null,
+              connector: null,
+            });
+            return;
+          }
+          setAstroxError(null);
+          updateWallet("astrox", { status: "connecting", error: null, connector: astroxConnector });
+          try {
+            await astroxConnector.init();
+            const connectResult = await astroxConnector.connect();
+            if (connectResult.isOk() && connectResult.value) {
+              const wallet = astroxConnector.getWallet();
+              const principalText = astroxConnector.principal ?? wallet?.principal ?? null;
+              const accountId = wallet?.accountId ?? safeDeriveAccountId(principalText);
+              setIsAstroxConnected(true);
+              updateWallet("astrox", {
+                status: "connected",
+                principalText,
+                accountId,
+                agent: null,
+                relyingParty: null,
+                connector: astroxConnector,
+                error: null,
+              });
+              setActiveWalletId("astrox");
+              return;
+            }
+            const message = connectResult.isErr() ? connectResult.error.message ?? "AstroX connect failed." : "AstroX connect failed.";
+            setAstroxError(message);
+            setIsAstroxConnected(false);
+            updateWallet("astrox", {
+              status: "error",
+              error: message,
+              principalText: null,
+              accountId: null,
+              agent: null,
+              relyingParty: null,
+              connector: astroxConnector,
+            });
+          } catch (error) {
+            const message = getErrorMessage(error) ?? "AstroX connect failed.";
+            setAstroxError(message);
+            setIsAstroxConnected(false);
+            updateWallet("astrox", {
+              status: "error",
+              error: message,
+              principalText: null,
+              accountId: null,
+              agent: null,
+              relyingParty: null,
+              connector: astroxConnector,
+            });
+          } finally {
+            // no-op
+          }
           return;
         }
 
@@ -311,6 +540,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           accountId,
           agent: null,
           relyingParty,
+          connector: null,
         });
         setActiveWalletId("oisy");
       } catch (error) {
@@ -324,14 +554,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           accountId: null,
           agent: null,
           relyingParty: null,
+          connector: null,
         });
       }
     },
-    [updateWallet]
+    [astroxConnector, updateWallet]
   );
 
   const disconnectWallet = useCallback(
     async (id: WalletId) => {
+      if (id === "astrox") {
+        setAstroxError(null);
+        await astroxConnector?.disconnect();
+        setIsAstroxConnected(false);
+      }
       if (id === "plug") {
         const plug = getPlugProvider();
         if (plug) {
@@ -354,11 +590,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         accountId: null,
         agent: null,
         relyingParty: null,
+        connector: null,
         error: null,
       });
       setActiveWalletId((prev) => (prev === id ? null : prev));
     },
-    [updateWallet, wallets]
+    [astroxConnector, setActiveWalletId, updateWallet, wallets]
   );
 
   const ensureActiveCanisterAccess = useCallback(
