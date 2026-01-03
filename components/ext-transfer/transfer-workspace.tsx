@@ -3,6 +3,7 @@
 // components/ext-transfer/transfer-workspace.tsx: 選択と送信の主要UI。アクティブなウォレットで順次転送する。
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCcw, Send } from "lucide-react";
+import { Actor } from "@dfinity/agent";
 import { Principal } from "@dfinity/principal";
 import { Principal as IcpPrincipal } from "@icp-sdk/core/principal";
 
@@ -461,10 +462,17 @@ export default function TransferWorkspace() {
                             if (!plug) {
                               throw new Error("Plug extension not detected.");
                             }
-                            const actor = await plug.createActor<TransferActor>({
-                              canisterId: selectedCanister.id,
-                              interfaceFactory: transferIdlFactory,
-                            });
+                            const plugAgent = plug.agent ?? null;
+                            if (!plugAgent) {
+                              throw new Error("Plug agent is not available.");
+                            }
+                            const actor = await Actor.createActor<TransferActor>(
+                              transferIdlFactory,
+                              {
+                                agent: plugAgent,
+                                canisterId: selectedCanister.id,
+                              }
+                            );
                             return actor.transfer({
                               to:
                                 transferMode === "principal"

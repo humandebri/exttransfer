@@ -198,13 +198,14 @@ function decodeListings(
   tupleShape: IDL.Type,
   recordShape: IDL.Type
 ): unknown {
+  const bytes = new Uint8Array(buffer);
   try {
-    return IDL.decode([IDL.Vec(tupleShape)], buffer);
+    return IDL.decode([IDL.Vec(tupleShape)], bytes);
   } catch (error) {
     console.warn("[exttransfer] listings tuple decode failed", error);
   }
   try {
-    return IDL.decode([IDL.Vec(recordShape)], buffer);
+    return IDL.decode([IDL.Vec(recordShape)], bytes);
   } catch (error) {
     console.warn("[exttransfer] listings record decode failed", error);
   }

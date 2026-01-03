@@ -6,6 +6,23 @@ export type TokensResult =
   | { kind: "ok"; indexes: number[] }
   | { kind: "err"; message: string };
 
+function isArrayBufferView(value: unknown): value is ArrayBufferView {
+  return ArrayBuffer.isView(value);
+}
+
+function toBytes(value: unknown): Uint8Array | null {
+  if (value instanceof Uint8Array) {
+    return value;
+  }
+  if (isArrayBufferView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+  if (value instanceof ArrayBuffer) {
+    return new Uint8Array(value);
+  }
+  return null;
+}
+
 export async function fetchOwnedTokenIndexes(
   agent: Agent,
   canisterId: string,
@@ -30,19 +47,10 @@ export async function fetchOwnedTokenIndexes(
     return { kind: "err", message: "Invalid response" };
   }
 
-  const bytes =
-    raw instanceof Uint8Array
-      ? raw
-      : raw instanceof ArrayBuffer
-        ? new Uint8Array(raw)
-        : null;
+  const bytes = toBytes(raw);
   if (!bytes) {
     return { kind: "err", message: "Invalid response" };
   }
-  const buffer = bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength
-  );
   const decoded = IDL.decode(
     [
       IDL.Variant({
@@ -53,7 +61,7 @@ export async function fetchOwnedTokenIndexes(
         }),
       }),
     ],
-    buffer
+    bytes
   );
 
   if (!Array.isArray(decoded) || decoded.length === 0) {
